@@ -1676,7 +1676,7 @@ const createPurchaseOrder = async (req, res) => {
           message: "Items must include id, name, unit",
         });
       }
-      if (!item.rate || !item.quantity || Number(item.quantity) <= 0) {
+      if (!item.rate || !item.quantity || Number(item.quantity) < 0) {
         return res.status(400).json({
           success: false,
           message: "Each item must have valid quantity & rate",
