@@ -1566,7 +1566,7 @@ const createPurchaseOrder = async (req, res) => {
       otherCharges = [],
       prePoId = null
     } = req.body;
-
+    console.log("req ->", req.body)
     logger.error({
       message: "Incoming PO Request",
       data: req.body
