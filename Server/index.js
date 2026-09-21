@@ -31,6 +31,7 @@ const userRouter = require("./routes/rawMaterialItemsRoutes/userRouter");
 const verificationRouter = require("./routes/rawMaterialItemsRoutes/verificationRouter");
 const accountsRouter = require("./routes/rawMaterialItemsRoutes/accountsRouter");
 const testRouter = require("./routes/test");
+const tempRouter = require("./routes/temp.router");
 // ------------------------------
 const prePoRouter = require('./routes/rawMaterialItemsRoutes/prePoRouter');
 
@@ -129,6 +130,7 @@ app.use("/test", testRouter);
 require("./helpers/cron/stockShortageCron");
 
 app.use('/pre-po', prePoRouter);
+app.use("/temp", tempRouter);
 
 // require("./helpers/whatsapp/whatsappCron");
 
