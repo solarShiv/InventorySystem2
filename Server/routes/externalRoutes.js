@@ -8,5 +8,5 @@ const {
  } = require("../controllers/rawMaterialItemsController/external.controller");
 
 router.get("/api/vehicle/delivery-status", externalAPIController.getVehicleReceiptStatusToday);
-router.get("/inverter-po-list", verifyApiKey, PO_list_for_inverter);
+router.post("/inverter-po-list", verifyApiKey, PO_list_for_inverter);
 module.exports = router;

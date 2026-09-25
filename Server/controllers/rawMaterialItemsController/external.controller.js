@@ -1,18 +1,40 @@
 const prisma = require("../../config/prismaClient");
+
 const PO_list_for_inverter = async (req, res) => {
   try {
-    let { page = 1, limit = 10 } = req.query;
+    let {
+      page = 1,
+      limit = 10,
+      tags = [],
+    } = req.body || req.query;
 
     page = Math.max(parseInt(page, 10) || 1, 1);
-    limit = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 100);
+    limit = Math.min(
+      Math.max(parseInt(limit, 10) || 10, 1),
+      100
+    );
 
     const skip = (page - 1) * limit;
 
-    const where = {
-      itemName: {
-        contains: "inverter",
-      },
-    };
+    // Normalize tags
+    if (!Array.isArray(tags)) {
+      tags = [tags];
+    }
+
+    // Remove empty values
+    tags = tags
+      .filter((tag) => tag && String(tag).trim())
+      .map((tag) => String(tag).trim());
+
+    const where = tags.length
+      ? {
+          OR: tags.map((tag) => ({
+            itemName: {
+              contains: tag,
+            },
+          })),
+        }
+      : {};
 
     const [items, total] = await Promise.all([
       prisma.purchaseOrderItem.findMany({
@@ -79,6 +101,7 @@ const PO_list_for_inverter = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   PO_list_for_inverter,
