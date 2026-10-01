@@ -1590,6 +1590,7 @@ const getPendingPOsForReceiving = async (req, res) => {
             receivedQty: item.receivedQty,
             pendingQty:
               Number(item.quantity || 0) - Number(item.receivedQty || 0),
+            itemDetail: item.itemDetail
           })),
         };
       })
