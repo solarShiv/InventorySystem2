@@ -1,5 +1,6 @@
 const ExcelJS = require("exceljs");
 const prisma = require("../config/prismaClient");
+const SystemItem = require("../models/systemInventoryModels/systemItemSchema")
 const exportPurchaseOrders = async (req, res) => {
   try {
     const purchaseOrders = await prisma.purchaseOrder.findMany({
@@ -442,11 +443,14 @@ const po_list = async (req, res) => {
     console.log("List");
     const list = await prisma.purchaseOrder.findMany({
       include: {
-        purchaseOrDebitNoteTerms:true,
-        payments:true,
+        damagedStock:true,
         items: true,
-        receipts:true,
-        returnToVendor:true
+        company: true,
+        vendor: true,
+        receipts: true,
+        returnToVendor:true,
+        invoices:true,
+        payments:true
       },
       orderBy: {
         createdAt: "desc",
@@ -463,9 +467,20 @@ const po_list = async (req, res) => {
     });
   }
 };
+
+const itemList = async(req, res) =>{
+  const items = await prisma.RawMaterial.findMany();
+  const mongooseItem = await SystemItem.find();
+  return res.status(200).json({
+    success:true,
+    data:items,
+    mongooseData: mongooseItem
+  })
+}
 module.exports = {
   exportPurchaseOrders,
   downloadCompaniesExcel,
   downloadVendorExcel,
   po_list,
+  itemList
 };
