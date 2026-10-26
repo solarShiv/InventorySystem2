@@ -2562,8 +2562,15 @@ const newDirectItemIssue = async (req, res) => {
       serviceProcessId,
       issuedToName,
       department,
+      proof_images
     } = req.body;
-
+    /*  -------------- check proof images ---------------*/
+    if(!proof_images){
+      return res.status(400).json({
+        success: false,
+        message: "Proof Image is required",
+      });
+    }
     /* ---------------- BODY VALIDATION ---------------- */
     if (!issuedTo) {
       return res.status(400).json({
@@ -2742,6 +2749,7 @@ const newDirectItemIssue = async (req, res) => {
           issuedToName: issuedToName || issuedToUser.name || null,
           department: department || issuedToUser.role?.name || null,
           remarks,
+          proof_images
         },
       });
     })
@@ -2832,6 +2840,7 @@ const getDirectItemIssueHistory = async (req, res) => {
     });
 
     // Build clean, simple response
+    console.log("history:", history[0]);
     const response = history.map((issue) => ({
       id: issue.id,
       // warehouseId: warehouse?._id || null,
@@ -2840,12 +2849,13 @@ const getDirectItemIssueHistory = async (req, res) => {
       issuedByName: issue.issuedByUser?.name || null,
       issuedToId: issue.issuedToUser?.id || null,
       issuedToName: issue.issuedToName || issue.issuedToUser?.name || null,
+      proof_images: issue?.proof_images,
       rawMaterialIssued: Array.isArray(issue.rawMaterialIssued)
         ? issue.rawMaterialIssued.map((item) => ({
           rawMaterialId: item.rawMaterialId,
           rawMaterialName: rawMaterialMap[item.rawMaterialId] || null,
           quantity: item.quantity,
-          unit: item.unit,
+          unit: item.unit
         }))
         : [],
       issuedAt: issue.issuedAt,
