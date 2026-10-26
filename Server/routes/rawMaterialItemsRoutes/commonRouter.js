@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const commonController = require("../../controllers/rawMaterialItemsController/commonController");
 const purchaseOrderController = require("../../controllers/rawMaterialItemsController/purchaseOrderController");
+const multerUpload = require("../../middlewares/multipleUpload.middleware");
 const {
   tokenVerification,
 } = require("../../middlewares/rawMaterialMiddlewares/tokenVerification");
@@ -284,5 +285,5 @@ router.get("/item/price/cheapest", commonController.getCheapestPrice);
 router.get("/payments/dashboard", commonController.getAdvancePaymentDashboard);
 router.get("/payments/advance/unsettled", commonController.getAdvancePaymentWithoutMaterial);
 router.get("/purchase-orders/receiving/report", commonController.exportPOReceivingReport);
-
+router.post("/uploadFile",  multerUpload(`directIssueItem`, [{ name: "file", maxCount: 1 }]), commonController.uploadFile);
 module.exports = router;
