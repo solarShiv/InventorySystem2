@@ -2775,7 +2775,7 @@ const newDirectItemIssue = async (req, res) => {
       message: "Items issued successfully",
       data: result,
     });
-  } catch (er) {
+  } catch (error) {
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
