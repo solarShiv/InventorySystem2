@@ -1,0 +1,1 @@
+ALTER TABLE `directitemissue` ADD COLUMN `proofImage` JSON NULL;

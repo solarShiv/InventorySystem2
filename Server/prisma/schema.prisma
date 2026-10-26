@@ -7,684 +7,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// -----------------------------------
-
-enum PrePoStatus {
-  PREPO_DRAFT
-  PREPO_REQUESTED
-  PREPO_APPROVED
-  PREPO_REJECTED
-  PO_GENERATED
+model auditlog {
+  id          String   @id
+  entityType  String
+  entityId    String
+  action      String
+  performedBy String?
+  oldValue    Json?
+  newValue    Json?
+  timestamp   DateTime @default(now())
 }
 
-model PrePo {
-  id String @id @default(uuid())
-
-  poId     String?
-  poNumber String?
-
-  purchaseOrder PurchaseOrder? @relation(fields: [poId], references: [id])
-
-  vendorId String?
-  vendor   Vendor? @relation(fields: [vendorId], references: [id])
-
-  status PrePoStatus @default(PREPO_DRAFT)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  createdBy       String?
-  prePO_CreatedBy User?        @relation("PrePO_CreatedByUser", fields: [createdBy], references: [id])
-  updatedBy       String?
-  prePO_UpdatedBy User?        @relation("PrePO_UpdatedByUser", fields: [updatedBy], references: [id])
-  prePoItems      PrePoItems[]
-}
-
-model PrePoItems {
-  id String @id @default(uuid())
-
-  prePoId String
-  prePo   PrePo  @relation(fields: [prePoId], references: [id])
-
-  itemId     String?
-  itemSource String?
-  itemName   String?
-  quantity   Decimal @db.Decimal(18, 4)
-  unit       String?
-
-  rate Decimal @db.Decimal(12, 4)
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-}
-
-// ------------------------------------
-
-model User {
-  id                         String                       @id @default(uuid())
-  name                       String?
-  email                      String?                      @unique
-  contact                    String?
-  password                   String?
-  roleId                     String?
-  block                      String?
-  district                   String?
-  state                      String?
-  isActive                   Boolean?
-  refreshToken               String?
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime                     @default(now()) @updatedAt
-  warehouseId                String?
-  allotedCompany             Json?
-  BankDetail                 BankDetail[]
-  Company                    Company[]
-  damagedStocksCreated       DamagedStock[]               @relation("Damaged_Stock_CreatedBy")
-  damagedStocksUpdated       DamagedStock[]               @relation("Damaged_Stock_UpdatedBy")
-  debitNotes                 DebitNote[]
-  issuedItemsByUser          DirectItemIssue[]            @relation("IssuedByUser")
-  issuedItemsToUser          DirectItemIssue[]            @relation("IssuedToUser")
-  updatedByUser_DirectIssue  DirectItemIssue[]            @relation("UpdatedByUser_DirectIssue")
-  assembleStockReceives      Disassemble_Reusable_Items[] @relation("AssembleEmployee")
-  disassembleTasks           Disassemble_Reusable_Items[] @relation("DisassembleEmployee")
-  infraItemsCreated          InfraMaterial[]              @relation("InfraItemCreatedByUser")
-  infraItemsUpdated          InfraMaterial[]              @relation("InfroItemUpdatedByUser")
-  updatedItems               ItemRawMaterial[]            @relation("UserUpdates")
-  approvedItemRequests       ItemRequestData[]            @relation("ApprovedByUser")
-  declinedItemRequests       ItemRequestData[]            @relation("DeclinedByUser")
-  requestedItemRequests      ItemRequestData[]            @relation("RequestedByUser")
-  updatedItemRequests        ItemRequestData[]            @relation("UpdatedByUser")
-  itemUsage                  ItemUsage[]
-  adminApprovedPayments      Payment[]                    @relation("approvedBy_Admin")
-  paymentsCreated            Payment[]                    @relation("paymentCreatedBy")
-  docApprovedPayments        Payment[]                    @relation("doc_ApprovedBy")
-  paymentRejectedBy          Payment[]                    @relation("payment_RejectedBy")
-  paymentsRequested          Payment[]                    @relation("payment_RequestedBy")
-  paymentTransferred         Payment[]                    @relation("payment_TransferredBy")
-  productionLogs             ProductionLog[]
-  followUpCreatedBy          PurchaseFollowUp[]           @relation("followUp_CreatedBy")
-  followUpUpdatedBy          PurchaseFollowUp[]           @relation("followUp_UpdatedBy")
-  PurchaseOrder              PurchaseOrder[]
-  PurchaseOrderReceipt       PurchaseOrderReceipt[]
-  rawMaterialCreated         RawMaterial[]                @relation("ItemCreatedByUser")
-  rawMaterialUpdated         RawMaterial[]                @relation("ItemUpdatedByUser")
-  services                   ServiceRecord[]
-  createdServiceProcess      Service_Process_Record[]     @relation("CreatedByUser")
-  updatedServiceProcess      Service_Process_Record[]     @relation("UpdatedByUser")
-  stageActivity              StageActivity[]
-  stocks                     StockMovement[]
-  stockMovementBatch         StockMovementBatch[]
-  termsCreatedBy             Terms_Conditions[]           @relation("TermsCreatedBy")
-  termsUpdatedBy             Terms_Conditions[]           @relation("TermsUpdatedBy")
-  toolsCreatedBy             ToolsEquipments[]            @relation("ToolsCreatedByUser")
-  toolsUpdatedBy             ToolsEquipments[]            @relation("ToolsUpdatedByUser")
-  role                       Role?                        @relation(fields: [roleId], references: [id])
-  userItemStock              UserItemStock[]
-  Vendor                     Vendor[]
-  invoiceCreated             VendorInvoices[]             @relation("invoice_CreatedBy")
-  invoiceUpdated             VendorInvoices[]             @relation("invoice_UpdatedBy")
-  prePO_Created              PrePo[]                      @relation("PrePO_CreatedByUser")
-  prePO_Updated              PrePo[]                      @relation("PrePO_UpdatedByUser")
-  materialReturnedAsEmployee MaterialReturn[]             @relation("MaterialReturn_Employee")
-  materialReturnedProcessed  MaterialReturn[]             @relation("MaterialReturn_Storekeeper")
-
-  @@index([roleId], map: "User_roleId_fkey")
-}
-
-model Role {
-  id        String   @id @default(uuid())
-  name      String?  @unique
-  createdAt DateTime @default(now())
-  users     User[]
-}
-
-model Warehouse {
-  id        String   @id @default(uuid())
-  name      String?  @unique
-  state     String?
-  createdAt DateTime @default(now())
-}
-
-model Item {
-  id                 String               @id @default(uuid())
-  name               String?              @unique
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  rawMaterials       ItemRawMaterial[]
-  manufacturingUsage ManufacturingUsage[]
-  productItemMap     Product_Item_Map[]
-  productionLogs     ProductionLog[]
-}
-
-model RawMaterial {
-  id                  String               @id @default(uuid())
-  name                String?              @unique
-  stock               Float?
-  unit                String?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  isUsed              Boolean?             @default(true)
-  createdBy           String?
-  minQty              Float?
-  updatedBy           String?
-  conversionFactor    Float?
-  conversionUnit      String?
-  description         String?
-  hsnCode             String?
-  ItemRawMaterial     ItemRawMaterial[]
-  itemUsage           ItemUsage[]
-  manufacturingUsages ManufacturingUsage[]
-  createdByUser       User?                @relation("ItemCreatedByUser", fields: [createdBy], references: [id])
-  updatedByUser       User?                @relation("ItemUpdatedByUser", fields: [updatedBy], references: [id])
-  serviceUsages       ServiceUsage[]
-  stageRawMaterial    StageRawMaterial[]
-  stockMovements      StockMovement[]
-  userItemStock       UserItemStock[]
-  warehouseStock      WarehouseStock[]
-  materialReturns     MaterialReturn[]
-
-  @@index([createdBy], map: "RawMaterial_createdBy_fkey")
-  @@index([updatedBy], map: "RawMaterial_updatedBy_fkey")
-}
-
-model ItemRawMaterial {
-  id            String       @id @default(uuid())
-  itemId        String?
-  rawMaterialId String?
-  quantity      Float?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  updatedBy     String?
-  itemModelId   String?
-  item          Item?        @relation(fields: [itemId], references: [id])
-  itemModel     Item_Model?  @relation(fields: [itemModelId], references: [id])
-  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
-  user          User?        @relation("UserUpdates", fields: [updatedBy], references: [id])
-
-  @@unique([itemId, rawMaterialId])
-  @@index([rawMaterialId], map: "ItemRawMaterial_rawMaterialId_fkey")
-  @@index([itemModelId], map: "ItemRawMaterial_itemModelId_fkey")
-  @@index([updatedBy], map: "ItemRawMaterial_updatedBy_fkey")
-}
-
-model StageRawMaterial {
-  id            String       @id @default(uuid())
-  stageId       String?
-  rawMaterialId String?
-  createdAt     DateTime?    @default(now())
-  updatedAt     DateTime?    @updatedAt
-  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
-  stage         Stage?       @relation(fields: [stageId], references: [id])
-
-  @@unique([stageId, rawMaterialId])
-  @@index([rawMaterialId], map: "StageRawMaterial_rawMaterialId_fkey")
-}
-
-model WarehouseStock {
-  id              String           @id @default(uuid())
-  warehouseId     String?
-  rawMaterialId   String?
-  quantity        Float?           @default(0)
-  unit            String?
-  isUsed          Boolean?         @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  damagedQty      Float?           @default(0)
-  infraItemId     String?
-  itemType        ItemCategory?
-  toolEquipmentId String?
-  itemId          String?
-  infraItem       InfraMaterial?   @relation(fields: [infraItemId], references: [id])
-  rawMaterial     RawMaterial?     @relation(fields: [rawMaterialId], references: [id])
-  toolsEquipments ToolsEquipments? @relation(fields: [toolEquipmentId], references: [id])
-
-  @@unique([warehouseId, rawMaterialId])
-  @@unique([warehouseId, infraItemId])
-  @@unique([warehouseId, toolEquipmentId])
-  @@index([warehouseId])
-  @@index([infraItemId], map: "WarehouseStock_infraItemId_fkey")
-  @@index([rawMaterialId], map: "WarehouseStock_rawMaterialId_fkey")
-  @@index([toolEquipmentId], map: "WarehouseStock_toolEquipmentId_fkey")
-}
-
-model StockMovementBatch {
-  id            String          @id @default(uuid())
-  billPhotos    Json?
-  createdAt     DateTime?       @default(now())
+model bankdetail {
+  id            String          @id
+  accountHolder String
+  bankName      String
+  branchName    String?
+  accountNumber String
+  ifscCode      String
+  accountType   String?         @default("Current")
+  isPrimary     Boolean         @default(false)
+  vendorId      String?
+  companyId     String?
   createdBy     String?
-  stockMovement StockMovement[]
-  user          User?           @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  company       company?        @relation(fields: [companyId], references: [id], map: "BankDetail_companyId_fkey")
+  user          user?           @relation(fields: [createdBy], references: [id], map: "BankDetail_createdBy_fkey")
+  vendor        vendor?         @relation(fields: [vendorId], references: [id], map: "BankDetail_vendorId_fkey")
+  debitnote     debitnote[]
+  purchaseorder purchaseorder[]
 
-  @@index([createdBy], map: "StockMovementBatch_createdBy_fkey")
+  @@index([companyId], map: "BankDetail_companyId_fkey")
+  @@index([createdBy], map: "BankDetail_createdBy_fkey")
+  @@index([vendorId], map: "BankDetail_vendorId_fkey")
 }
 
-model StockMovement {
-  id              String              @id @default(uuid())
-  rawMaterialId   String?
-  userId          String?
-  warehouseId     String?
-  quantity        Float?
-  unit            String?
-  type            String?
-  timestamp       DateTime            @default(now())
-  batchId         String?
-  infraItemId     String?
-  toolEquipmentId String?
-  itemId          String?
-  itemType        ItemCategory?
-  batch           StockMovementBatch? @relation(fields: [batchId], references: [id])
-  infraItem       InfraMaterial?      @relation(fields: [infraItemId], references: [id])
-  rawMaterial     RawMaterial?        @relation(fields: [rawMaterialId], references: [id])
-  toolsEquipments ToolsEquipments?    @relation(fields: [toolEquipmentId], references: [id])
-  user            User?               @relation(fields: [userId], references: [id])
-
-  @@index([rawMaterialId], map: "StockMovement_rawMaterialId_fkey")
-  @@index([warehouseId], map: "StockMovement_warehouseId_fkey")
-  @@index([batchId], map: "StockMovement_batchId_fkey")
-  @@index([infraItemId], map: "StockMovement_infraItemId_fkey")
-  @@index([toolEquipmentId], map: "StockMovement_toolEquipmentId_fkey")
-  @@index([userId], map: "StockMovement_userId_fkey")
-}
-
-model ManufacturingUsage {
-  id                String       @id @default(uuid())
-  itemId            String?
-  rawMaterialId     String?
-  quantityUsed      Float?
-  unit              String?
-  manufacturingDate DateTime     @default(now())
-  item              Item?        @relation(fields: [itemId], references: [id])
-  rawMaterial       RawMaterial? @relation(fields: [rawMaterialId], references: [id])
-
-  @@index([itemId], map: "ManufacturingUsage_itemId_fkey")
-  @@index([rawMaterialId], map: "ManufacturingUsage_rawMaterialId_fkey")
-}
-
-model ProductionLog {
-  id                String   @id @default(uuid())
-  itemId            String
-  subItem           String
-  quantityProduced  Int
-  manufacturingDate DateTime @default(now())
-  userId            String
-  item              Item     @relation(fields: [itemId], references: [id])
-  user              User     @relation(fields: [userId], references: [id])
-
-  @@index([itemId], map: "ProductionLog_itemId_fkey")
-  @@index([userId], map: "ProductionLog_userId_fkey")
-}
-
-model ServiceRecord {
-  id                 String         @id @default(uuid())
-  item               String?
-  subItem            String?
-  quantity           Float?
-  serialNumber       String?
-  faultAnalysis      Json?
-  isRepaired         Boolean?
-  repairedRejectedBy String?
-  remarks            String?
-  repairedParts      Json?
-  userId             String
-  servicedAt         DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  initialRCA         Json?
-  user               User           @relation(fields: [userId], references: [id])
-  serviceUsages      ServiceUsage[]
-
-  @@index([serialNumber])
-  @@index([userId])
-}
-
-model ServiceUsage {
-  id            String        @id @default(uuid())
-  serviceId     String
-  rawMaterialId String?
-  quantityUsed  Float?
-  unit          String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  rawMaterial   RawMaterial?  @relation(fields: [rawMaterialId], references: [id])
-  service       ServiceRecord @relation(fields: [serviceId], references: [id])
-
-  @@index([serviceId], map: "ServiceUsage_serviceId_fkey")
-  @@index([rawMaterialId], map: "ServiceUsage_rawMaterialId_fkey")
-}
-
-model Unit {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-}
-
-model Stage {
-  id                               String                   @id @default(uuid())
-  name                             String                   @unique
-  description                      String?
-  createdAt                        DateTime                 @default(now())
-  updatedAt                        DateTime                 @updatedAt
-  failureRedirectStage             FailureRedirect[]
-  itemTypeStage                    ItemType_Stage[]
-  serviceProcessInitialStage       Service_Process_Record[] @relation("InitialStage")
-  serviceProcessRestartedFromStage Service_Process_Record[] @relation("RestartedFrom")
-  serviceProcess                   Service_Process_Record[]
-  stageActivity                    StageActivity[]
-  stageFlowCurrentStage            StageFlow[]              @relation("CurrentStage")
-  stageFlowNextStage               StageFlow[]              @relation("NextStage")
-  stageRawMaterial                 StageRawMaterial[]
-
-  @@map("Stage")
-}
-
-model ItemType {
-  id              String                   @id @default(uuid())
-  name            String                   @unique
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
-  failureRedirect FailureRedirect[]
-  itemTypeStage   ItemType_Stage[]
-  serviceProcess  Service_Process_Record[]
-  stageFlow       StageFlow[]
-
-  @@map("ItemType")
-}
-
-model StageActivity {
-  id               String                  @id @default(uuid())
-  serviceProcessId String?
-  empId            String?
-  stageId          String?
-  status           ActivityStatus          @default(PENDING)
-  isCurrent        Boolean                 @default(false)
-  failureReason    FailureReason?
-  remarks          String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  acceptedAt       DateTime?
-  completedAt      DateTime?
-  outcome          String?
-  startedAt        DateTime?
-  user             User?                   @relation(fields: [empId], references: [id])
-  serviceProcess   Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])
-  stage            Stage?                  @relation(fields: [stageId], references: [id])
-
-  @@index([empId], map: "StageActivity_empId_fkey")
-  @@index([serviceProcessId], map: "StageActivity_serviceProcessId_fkey")
-  @@index([stageId], map: "StageActivity_stageId_fkey")
-  @@map("StageActivity")
-}
-
-model ItemType_Stage {
-  id         String    @id @default(uuid())
-  itemTypeId String?
-  stageId    String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  itemType   ItemType? @relation(fields: [itemTypeId], references: [id])
-  stage      Stage?    @relation(fields: [stageId], references: [id])
-
-  @@index([itemTypeId], map: "ItemType_Stage_itemTypeId_fkey")
-  @@index([stageId], map: "ItemType_Stage_stageId_fkey")
-  @@map("ItemType_Stage")
-}
-
-model ItemRequestData {
-  id                   String                  @id @default(uuid())
-  serviceProcessId     String?
-  isProcessRequest     Boolean                 @default(false)
-  rawMaterialRequested Json?
-  requestedTo          String?
-  requestedBy          String?
-  requestedAt          DateTime                @default(now())
-  approved             Boolean?
-  approvedBy           String?
-  approvedAt           DateTime?
-  materialGiven        Boolean?
-  updatedAt            DateTime?               @updatedAt
-  updatedBy            String?
-  declined             Boolean?
-  declinedAt           DateTime?
-  declinedBy           String?
-  declinedRemarks      String?
-  warehouseId          String?
-  materialRequested    Json?
-  approvedByUser       User?                   @relation("ApprovedByUser", fields: [approvedBy], references: [id])
-  declinedByUser       User?                   @relation("DeclinedByUser", fields: [declinedBy], references: [id])
-  requestedByUser      User?                   @relation("RequestedByUser", fields: [requestedBy], references: [id])
-  serviceProcess       Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])
-  updatedByUser        User?                   @relation("UpdatedByUser", fields: [updatedBy], references: [id])
-
-  @@index([approvedBy], map: "ItemRequestData_approvedBy_fkey")
-  @@index([declinedBy], map: "ItemRequestData_declinedBy_fkey")
-  @@index([requestedBy], map: "ItemRequestData_requestedBy_fkey")
-  @@index([serviceProcessId], map: "ItemRequestData_serviceProcessId_fkey")
-  @@index([updatedBy], map: "ItemRequestData_updatedBy_fkey")
-  @@map("ItemRequestData")
-}
-
-model DirectItemIssue {
-  id                String                  @id @default(uuid())
-  warehouseId       String?
-  serviceProcessId  String?
-  isProcessIssue    Boolean                 @default(false)
-  rawMaterialIssued Json?
-  issuedTo          String?
-  issuedBy          String?
-  issuedAt          DateTime                @default(now())
-  remarks           String?
-  updatedAt         DateTime?               @updatedAt
-  updatedBy         String?
-  department        String?
-  issuedToName      String?
-  materialIssued    Json?
-  issuedByUser      User?                   @relation("IssuedByUser", fields: [issuedBy], references: [id])
-  issuedToUser      User?                   @relation("IssuedToUser", fields: [issuedTo], references: [id])
-  serviceProcess    Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])
-  updatedByUser     User?                   @relation("UpdatedByUser_DirectIssue", fields: [updatedBy], references: [id])
-
-  @@index([issuedBy], map: "DirectItemIssue_issuedBy_fkey")
-  @@index([issuedTo], map: "DirectItemIssue_issuedTo_fkey")
-  @@index([serviceProcessId], map: "DirectItemIssue_serviceProcessId_fkey")
-  @@index([updatedBy], map: "DirectItemIssue_updatedBy_fkey")
-  @@map("DirectItemIssue")
-}
-
-model Service_Process_Record {
-  id                   String                       @id @default(uuid())
-  itemTypeId           String?
-  serialNumber         String?
-  stageId              String?
-  initialStageId       String?
-  restartedFromStageId String?
-  status               ProcessStatus                @default(PENDING)
-  createdAt            DateTime                     @default(now())
-  createdBy            String?
-  updatedAt            DateTime                     @updatedAt
-  updatedBy            String?
-  isRepaired           Boolean?
-  quantity             Float?
-  finalRemarks         String?
-  finalStatus          String?
-  isClosed             Boolean                      @default(false)
-  completedAt          DateTime?
-  itemName             String?
-  productName          String?
-  subItemName          String?
-  disassembleSessionId String?
-  disassembleStatus    String?
-  isDisassemblePending Boolean?                     @default(false)
-  warehouseId          String?
-  directItemIssues     DirectItemIssue[]
-  reusableItems        Disassemble_Reusable_Items[]
-  itemRequestData      ItemRequestData[]
-  serviceProcessUsage  ItemUsage[]
-  createdUser          User?                        @relation("CreatedByUser", fields: [createdBy], references: [id])
-  initialStage         Stage?                       @relation("InitialStage", fields: [initialStageId], references: [id])
-  itemType             ItemType?                    @relation(fields: [itemTypeId], references: [id])
-  restartedFromStage   Stage?                       @relation("RestartedFrom", fields: [restartedFromStageId], references: [id])
-  stage                Stage?                       @relation(fields: [stageId], references: [id])
-  updatedUser          User?                        @relation("UpdatedByUser", fields: [updatedBy], references: [id])
-  stageActivity        StageActivity[]
-
-  @@index([serialNumber])
-  @@index([itemName])
-  @@index([subItemName])
-  @@index([createdAt])
-  @@index([stageId])
-  @@index([itemTypeId])
-  @@index([status])
-  @@index([createdBy], map: "Service_Process_Record_createdBy_fkey")
-  @@index([initialStageId], map: "Service_Process_Record_initialStageId_fkey")
-  @@index([restartedFromStageId], map: "Service_Process_Record_restartedFromStageId_fkey")
-  @@index([updatedBy], map: "Service_Process_Record_updatedBy_fkey")
-  @@map("Service_Process_Record")
-}
-
-model StageFlow {
-  id             String    @id @default(uuid())
-  itemTypeId     String?
-  currentStageId String?
-  nextStageId    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  productId      String?
-  currentStage   Stage?    @relation("CurrentStage", fields: [currentStageId], references: [id])
-  itemType       ItemType? @relation(fields: [itemTypeId], references: [id])
-  nextStage      Stage?    @relation("NextStage", fields: [nextStageId], references: [id])
-  product        Product?  @relation(fields: [productId], references: [id])
-
-  @@index([currentStageId], map: "StageFlow_currentStageId_fkey")
-  @@index([itemTypeId], map: "StageFlow_itemTypeId_fkey")
-  @@index([nextStageId], map: "StageFlow_nextStageId_fkey")
-  @@index([productId], map: "StageFlow_productId_fkey")
-  @@map("StageFlow")
-}
-
-model FailureRedirect {
-  id              String        @id @default(uuid())
-  itemTypeId      String?
-  failureReason   FailureReason
-  redirectStageId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  productId       String?
-  itemType        ItemType?     @relation(fields: [itemTypeId], references: [id])
-  product         Product?      @relation(fields: [productId], references: [id])
-  redirectStage   Stage?        @relation(fields: [redirectStageId], references: [id])
-
-  @@index([itemTypeId], map: "FailureRedirect_itemTypeId_fkey")
-  @@index([productId], map: "FailureRedirect_productId_fkey")
-  @@index([redirectStageId], map: "FailureRedirect_redirectStageId_fkey")
-  @@map("FailureRedirect")
-}
-
-model ItemUsage {
-  id               String                  @id @default(uuid())
-  serviceProcessId String?
-  empId            String?
-  rawMaterialId    String?
-  quantityUsed     Float?
-  unit             String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
-  itemId           String?
-  itemType         ItemCategory?
-  user             User?                   @relation(fields: [empId], references: [id])
-  rawMaterial      RawMaterial?            @relation(fields: [rawMaterialId], references: [id])
-  serviceProcess   Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])
-
-  @@index([empId], map: "ItemUsage_empId_fkey")
-  @@index([rawMaterialId], map: "ItemUsage_rawMaterialId_fkey")
-  @@index([serviceProcessId], map: "ItemUsage_serviceProcessId_fkey")
-  @@map("ItemUsage")
-}
-
-model UserItemStock {
-  id            String        @id @default(uuid())
-  empId         String?
-  rawMaterialId String?
-  quantity      Float         @default(0)
-  unit          String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  itemId        String?
-  itemType      ItemCategory?
-  user          User?         @relation(fields: [empId], references: [id])
-  rawMaterial   RawMaterial?  @relation(fields: [rawMaterialId], references: [id])
-
-  @@unique([empId, rawMaterialId])
-  @@unique([empId, itemId, itemType])
-  @@index([rawMaterialId], map: "UserItemStock_rawMaterialId_fkey")
-  @@map("UserItemStock")
-}
-
-model Disassemble_Reusable_Items {
-  id                   String                 @id @default(uuid())
-  serviceProcessId     String
-  empId                String?
-  assembleEmpId        String?
-  reusableItems        Json?
-  remarks              String?
-  createdAt            DateTime               @default(now())
-  assembleEmp          User?                  @relation("AssembleEmployee", fields: [assembleEmpId], references: [id])
-  disassembleEmp       User?                  @relation("DisassembleEmployee", fields: [empId], references: [id])
-  serviceProcessRecord Service_Process_Record @relation(fields: [serviceProcessId], references: [id])
-
-  @@index([assembleEmpId], map: "Disassemble_Reusable_Items_assembleEmpId_fkey")
-  @@index([empId], map: "Disassemble_Reusable_Items_empId_fkey")
-  @@index([serviceProcessId], map: "Disassemble_Reusable_Items_serviceProcessId_fkey")
-}
-
-model Item_Model {
-  id              String            @id @default(uuid())
-  model           String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  itemRawMaterial ItemRawMaterial[]
-}
-
-model BOMEntry {
-  id            String  @id @default(uuid())
+model bomentry {
+  id            String  @id
   itemId        String?
   rawMaterialId String?
   quantity      Float?
 }
 
-model Product {
-  id              String             @id @default(uuid())
-  productName     String
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  failureRedirect FailureRedirect[]
-  productItemMap  Product_Item_Map[]
-  stageFlow       StageFlow[]
-}
-
-model Product_Item_Map {
-  id        String   @id @default(uuid())
-  productId String?
-  itemId    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  item      Item?    @relation(fields: [itemId], references: [id])
-  product   Product? @relation(fields: [productId], references: [id])
-
-  @@unique([productId, itemId], name: "unique_product_item")
-  @@index([itemId], map: "Product_Item_Map_itemId_fkey")
-}
-
-model PanelMaster {
-  id         String   @id @default(uuid())
-  panelType  String?
-  moduleType String?
-  dcrType    String?
-  wattage    String?
-  hsnCode    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-}
-
-model Company {
-  id              String          @id @default(uuid())
+model company {
+  id              String          @id
   name            String
   companyCode     String?
   gstNumber       String?
@@ -699,7 +66,7 @@ model Company {
   currency        String?         @default("INR")
   createdBy       String
   createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  updatedAt       DateTime
   isActive        Boolean?        @default(true)
   accountHolder   String?
   accountNumber   String?
@@ -707,160 +74,611 @@ model Company {
   companyAadhaar  String?
   companyPanCard  String?
   ifscCode        String?
-  bankAccounts    BankDetail[]
-  user            User            @relation(fields: [createdBy], references: [id])
-  debitNotes      DebitNote[]
-  purchaseOrders  PurchaseOrder[]
+  bankdetail      bankdetail[]
+  user            user            @relation(fields: [createdBy], references: [id], map: "Company_createdBy_fkey")
+  debitnote       debitnote[]
+  purchaseorder   purchaseorder[]
 
   @@index([createdBy], map: "Company_createdBy_fkey")
 }
 
-model Vendor {
-  id                String             @id @default(uuid())
-  name              String
-  email             String?
-  gstNumber         String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  country           String?            @default("INDIA")
-  currency          String?            @default("INR")
-  contactNumber     String?
-  alternateNumber   String?
-  createdBy         String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  exchangeRate      Decimal?
-  isActive          Boolean?           @default(true)
-  contactPerson     String?
-  accountHolder     String?
-  accountNumber     String?
-  bankName          String?
-  ifscCode          String?
-  vendorAadhaar     String?
-  vendorPanCard     String?
-  aadhaarUrl        String?
-  pancardUrl        String?
-  contactNoVerified Boolean?           @default(false)
-  mailVerified      Boolean?           @default(false)
-  zipCode           String?
-  referenceBy       String?
-  bankAccounts      BankDetail[]
-  debitNotes        DebitNote[]
-  purchaseFollowUp  PurchaseFollowUp[]
-  purchaseOrders    PurchaseOrder[]
-  returnToVendor    ReturnToVendor[]
-  user              User               @relation(fields: [createdBy], references: [id])
-  vendorInvoices    VendorInvoices[]
-  prePos            PrePo[]
-
-  @@index([createdBy], map: "Vendor_createdBy_fkey")
-}
-
-model BankDetail {
-  id             String          @id @default(uuid())
-  accountHolder  String
-  bankName       String
-  branchName     String?
-  accountNumber  String
-  ifscCode       String
-  accountType    String?         @default("Current")
-  isPrimary      Boolean         @default(false)
-  vendorId       String?
-  companyId      String?
-  createdBy      String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  company        Company?        @relation(fields: [companyId], references: [id])
-  user           User?           @relation(fields: [createdBy], references: [id])
-  vendor         Vendor?         @relation(fields: [vendorId], references: [id])
-  debitNotes     DebitNote[]
-  purchaseOrders PurchaseOrder[]
-
-  @@index([companyId], map: "BankDetail_companyId_fkey")
-  @@index([createdBy], map: "BankDetail_createdBy_fkey")
-  @@index([vendorId], map: "BankDetail_vendorId_fkey")
-}
-
-model Counter {
-  id            String   @id @default(uuid())
-  name          String   @unique
+model counter {
+  id            String   @id
+  name          String   @unique(map: "Counter_name_key")
   companyId     String?
   financialYear String?
   seq           Int      @default(0)
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime
 }
 
-model PurchaseOrder {
-  id                       String                    @id @default(uuid())
-  poNumber                 String                    @unique
-  financialYear            String?
-  companyId                String
-  vendorId                 String
-  bankDetailId             String?
-  createdBy                String?
-  poDate                   DateTime                  @default(now())
-  gstType                  GSTType
-  subTotal                 Decimal?                  @db.Decimal(15, 4)
-  totalCGST                Decimal?                  @db.Decimal(12, 4)
-  totalSGST                Decimal?                  @db.Decimal(12, 4)
-  totalIGST                Decimal?                  @db.Decimal(12, 4)
-  totalGST                 Decimal?                  @db.Decimal(12, 4)
-  grandTotal               Decimal?                  @db.Decimal(15, 4)
-  status                   POStatus                  @default(Draft)
-  remarks                  String?
-  pdfUrl                   String?
-  pdfName                  String?
-  pdfGeneratedAt           DateTime?
-  pdfGeneratedBy           String?
-  emailSentAt              DateTime?
-  emailSentBy              String?
-  emailResentCount         Int                       @default(0)
-  emailLastResentAt        DateTime?
-  paymentTerms             String?
-  deliveryTerms            String?
-  contactPerson            String?
-  cellNo                   String?
-  warranty                 String?
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  companyName              String?
-  vendorName               String?
-  currency                 String?                   @default("INR")
-  exchangeRate             Decimal?                  @default(1.0000) @db.Decimal(12, 4)
-  foreignGrandTotal        Decimal?                  @db.Decimal(15, 4)
-  foreignSubTotal          Decimal?                  @db.Decimal(15, 4)
-  gstRate                  Decimal?                  @db.Decimal(7, 4)
-  otherCharges             Json?
-  approvalStatus           POApprovalStatus          @default(Pending)
-  approvedAt               DateTime?
-  approvedBy               String?
-  rejectionReason          String?
-  warehouseId              String?
-  warehouseName            String?
-  expectedDeliveryDate     DateTime?
-  fixedGrandTotal          Decimal?                  @db.Decimal(15, 4)
-  rejectedAt               DateTime?
-  rejectedBy               String?
-  heading                  String?
-  termsConditionsId        String?
-  damagedStock             DamagedStock[]
-  payments                 Payment[]
-  purchaseFollowUp         PurchaseFollowUp[]
-  purchaseOrDebitNoteTerms PurchaseOrDebitNoteTerm[]
-  bankDetail               BankDetail?               @relation(fields: [bankDetailId], references: [id])
-  company                  Company                   @relation(fields: [companyId], references: [id])
-  user                     User?                     @relation(fields: [createdBy], references: [id])
-  termsConditions          Terms_Conditions?         @relation(fields: [termsConditionsId], references: [id])
-  vendor                   Vendor                    @relation(fields: [vendorId], references: [id])
-  bills                    PurchaseOrderBill[]
-  items                    PurchaseOrderItem[]
-  receipts                 PurchaseOrderReceipt[]    @relation("PO_Receipts")
-  returnToVendor           ReturnToVendor[]
-  invoices                 VendorInvoices[]
-  prePos                   PrePo[]
+model damagedstock {
+  id                                String              @id
+  purchaseOrderId                   String?
+  itemId                            String?
+  itemSource                        String?
+  itemName                          String?
+  quantity                          Decimal             @db.Decimal(12, 4)
+  remarks                           String?
+  createdAt                         DateTime            @default(now())
+  updatedAt                         DateTime
+  createdBy                         String?
+  debitNoteId                       String?
+  invoiceNumber                     String?
+  status                            damagedstock_status @default(Pending)
+  amountInForeign                   Decimal?            @db.Decimal(12, 4)
+  gstRate                           Decimal?            @db.Decimal(7, 4)
+  hsnCode                           String?
+  itemDetail                        String?             @db.Text
+  itemGSTType                       String?
+  modelNumber                       String?
+  rate                              Decimal?            @db.Decimal(12, 4)
+  rateInForeign                     Decimal?            @db.Decimal(12, 4)
+  receivedQty                       Decimal?            @default(0.0000) @db.Decimal(12, 4)
+  total                             Decimal?            @db.Decimal(12, 4)
+  unit                              String?
+  updatedBy                         String?
+  user_damagedstock_createdByTouser user?               @relation("damagedstock_createdByTouser", fields: [createdBy], references: [id], map: "DamagedStock_createdBy_fkey")
+  debitnote                         debitnote?          @relation(fields: [debitNoteId], references: [id], map: "DamagedStock_debitNoteId_fkey")
+  purchaseorder                     purchaseorder?      @relation(fields: [purchaseOrderId], references: [id], map: "DamagedStock_purchaseOrderId_fkey")
+  user_damagedstock_updatedByTouser user?               @relation("damagedstock_updatedByTouser", fields: [updatedBy], references: [id], map: "DamagedStock_updatedBy_fkey")
+
+  @@index([createdBy], map: "DamagedStock_createdBy_fkey")
+  @@index([debitNoteId], map: "DamagedStock_debitNoteId_fkey")
+  @@index([purchaseOrderId], map: "DamagedStock_purchaseOrderId_fkey")
+  @@index([updatedBy], map: "DamagedStock_updatedBy_fkey")
+}
+
+model debitnote {
+  id                      String                    @id
+  debitNoteNo             String                    @unique(map: "DebitNote_debitNoteNo_key")
+  financialYear           String?
+  purchaseOrderId         String?
+  companyId               String
+  companyName             String?
+  vendorId                String
+  vendorName              String?
+  bankDetailId            String?
+  createdBy               String?
+  drNoteDate              DateTime                  @default(now())
+  gstType                 debitnote_gstType
+  gstRate                 Decimal?                  @db.Decimal(7, 4)
+  currency                String?                   @default("INR")
+  exchangeRate            Decimal?                  @default(1.0000) @db.Decimal(12, 4)
+  foreignSubTotal         Decimal?                  @db.Decimal(12, 4)
+  foreignGrandTotal       Decimal?                  @db.Decimal(12, 4)
+  subTotal                Decimal?                  @db.Decimal(12, 4)
+  totalCGST               Decimal?                  @db.Decimal(12, 4)
+  totalSGST               Decimal?                  @db.Decimal(12, 4)
+  totalIGST               Decimal?                  @db.Decimal(12, 4)
+  totalGST                Decimal?                  @db.Decimal(12, 4)
+  grandTotal              Decimal?                  @db.Decimal(12, 4)
+  status                  debitnote_status          @default(Debited)
+  remarks                 String?
+  pdfUrl                  String?
+  pdfName                 String?
+  pdfGeneratedAt          DateTime?
+  pdfGeneratedBy          String?
+  orgInvoiceNo            String?
+  orgInvoiceDate          DateTime?
+  gr_rr_no                String?
+  transport               String?
+  vehicleNumber           String?
+  station                 String?
+  otherCharges            Json?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime
+  billReference           String?
+  approvalStatus          debitnote_approvalStatus  @default(Pending)
+  approvedAt              DateTime?
+  approvedBy              String?
+  rejectionReason         String?
+  warehouseId             String?
+  warehouseName           String?
+  fixedGrandTotal         Decimal?                  @db.Decimal(12, 4)
+  expectedDeliveryDate    DateTime?
+  damagedstock            damagedstock[]
+  bankdetail              bankdetail?               @relation(fields: [bankDetailId], references: [id], map: "DebitNote_bankDetailId_fkey")
+  company                 company                   @relation(fields: [companyId], references: [id], map: "DebitNote_companyId_fkey")
+  user                    user?                     @relation(fields: [createdBy], references: [id], map: "DebitNote_createdBy_fkey")
+  vendor                  vendor                    @relation(fields: [vendorId], references: [id], map: "DebitNote_vendorId_fkey")
+  debitnotebill           debitnotebill[]
+  payment                 payment[]
+  purchaseordebitnoteterm purchaseordebitnoteterm[]
+  purchaseorderitem       purchaseorderitem[]
+  purchaseorderreceipt    purchaseorderreceipt[]
+  returntovendor          returntovendor[]
+
+  @@index([bankDetailId], map: "DebitNote_bankDetailId_fkey")
+  @@index([companyId], map: "DebitNote_companyId_fkey")
+  @@index([createdBy], map: "DebitNote_createdBy_fkey")
+  @@index([vendorId], map: "DebitNote_vendorId_fkey")
+}
+
+model debitnotebill {
+  id            String    @id
+  debitNoteId   String
+  invoiceNumber String?
+  fileName      String
+  fileUrl       String
+  mimeType      String
+  uploadedBy    String
+  createdAt     DateTime  @default(now())
+  debitnote     debitnote @relation(fields: [debitNoteId], references: [id], map: "DebitNoteBill_debitNoteId_fkey")
+
+  @@index([debitNoteId], map: "DebitNoteBill_debitNoteId_fkey")
+}
+
+model directitemissue {
+  id                                   String                  @id
+  warehouseId                          String?
+  serviceProcessId                     String?
+  isProcessIssue                       Boolean                 @default(false)
+  rawMaterialIssued                    Json?
+  issuedTo                             String?
+  issuedBy                             String?
+  issuedAt                             DateTime                @default(now())
+  remarks                              String?
+  updatedAt                            DateTime?
+  updatedBy                            String?
+  department                           String?
+  issuedToName                         String?
+  materialIssued                       Json?
+  proofImage                           Json?
+  user_directitemissue_issuedByTouser  user?                   @relation("directitemissue_issuedByTouser", fields: [issuedBy], references: [id], map: "DirectItemIssue_issuedBy_fkey")
+  user_directitemissue_issuedToTouser  user?                   @relation("directitemissue_issuedToTouser", fields: [issuedTo], references: [id], map: "DirectItemIssue_issuedTo_fkey")
+  service_process_record               service_process_record? @relation(fields: [serviceProcessId], references: [id], map: "DirectItemIssue_serviceProcessId_fkey")
+  user_directitemissue_updatedByTouser user?                   @relation("directitemissue_updatedByTouser", fields: [updatedBy], references: [id], map: "DirectItemIssue_updatedBy_fkey")
+
+  @@index([issuedBy], map: "DirectItemIssue_issuedBy_fkey")
+  @@index([issuedTo], map: "DirectItemIssue_issuedTo_fkey")
+  @@index([serviceProcessId], map: "DirectItemIssue_serviceProcessId_fkey")
+  @@index([updatedBy], map: "DirectItemIssue_updatedBy_fkey")
+}
+
+model disassemble_reusable_items {
+  id                                                  String                 @id
+  serviceProcessId                                    String
+  empId                                               String?
+  assembleEmpId                                       String?
+  reusableItems                                       Json?
+  remarks                                             String?
+  createdAt                                           DateTime               @default(now())
+  user_disassemble_reusable_items_assembleEmpIdTouser user?                  @relation("disassemble_reusable_items_assembleEmpIdTouser", fields: [assembleEmpId], references: [id], map: "Disassemble_Reusable_Items_assembleEmpId_fkey")
+  user_disassemble_reusable_items_empIdTouser         user?                  @relation("disassemble_reusable_items_empIdTouser", fields: [empId], references: [id], map: "Disassemble_Reusable_Items_empId_fkey")
+  service_process_record                              service_process_record @relation(fields: [serviceProcessId], references: [id], map: "Disassemble_Reusable_Items_serviceProcessId_fkey")
+
+  @@index([assembleEmpId], map: "Disassemble_Reusable_Items_assembleEmpId_fkey")
+  @@index([empId], map: "Disassemble_Reusable_Items_empId_fkey")
+  @@index([serviceProcessId], map: "Disassemble_Reusable_Items_serviceProcessId_fkey")
+}
+
+model failureredirect {
+  id              String                        @id
+  itemTypeId      String?
+  failureReason   failureredirect_failureReason
+  redirectStageId String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime
+  productId       String?
+  itemtype        itemtype?                     @relation(fields: [itemTypeId], references: [id], map: "FailureRedirect_itemTypeId_fkey")
+  product         product?                      @relation(fields: [productId], references: [id], map: "FailureRedirect_productId_fkey")
+  stage           stage?                        @relation(fields: [redirectStageId], references: [id], map: "FailureRedirect_redirectStageId_fkey")
+
+  @@index([itemTypeId], map: "FailureRedirect_itemTypeId_fkey")
+  @@index([productId], map: "FailureRedirect_productId_fkey")
+  @@index([redirectStageId], map: "FailureRedirect_redirectStageId_fkey")
+}
+
+model inframaterial {
+  id                                 String           @id
+  name                               String?          @unique(map: "InfraMaterial_name_key")
+  unit                               String?
+  hsnCode                            String?
+  conversionUnit                     String?
+  conversionFactor                   Float?
+  isUsed                             Boolean?         @default(true)
+  description                        String?
+  createdAt                          DateTime         @default(now())
+  createdBy                          String?
+  updatedAt                          DateTime
+  updatedBy                          String?
+  user_inframaterial_createdByTouser user?            @relation("inframaterial_createdByTouser", fields: [createdBy], references: [id], map: "InfraMaterial_createdBy_fkey")
+  user_inframaterial_updatedByTouser user?            @relation("inframaterial_updatedByTouser", fields: [updatedBy], references: [id], map: "InfraMaterial_updatedBy_fkey")
+  stockmovement                      stockmovement[]
+  warehousestock                     warehousestock[]
+
+  @@index([createdBy], map: "InfraMaterial_createdBy_fkey")
+  @@index([updatedBy], map: "InfraMaterial_updatedBy_fkey")
+}
+
+model item {
+  id                 String               @id
+  name               String?              @unique(map: "Item_name_key")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  itemrawmaterial    itemrawmaterial[]
+  manufacturingusage manufacturingusage[]
+  product_item_map   product_item_map[]
+  productionlog      productionlog[]
+}
+
+model item_model {
+  id              String            @id
+  model           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime
+  itemrawmaterial itemrawmaterial[]
+}
+
+model itemrawmaterial {
+  id            String       @id
+  itemId        String?
+  rawMaterialId String?
+  quantity      Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime
+  updatedBy     String?
+  itemModelId   String?
+  item          item?        @relation(fields: [itemId], references: [id], map: "ItemRawMaterial_itemId_fkey")
+  item_model    item_model?  @relation(fields: [itemModelId], references: [id], map: "ItemRawMaterial_itemModelId_fkey")
+  rawmaterial   rawmaterial? @relation(fields: [rawMaterialId], references: [id], map: "ItemRawMaterial_rawMaterialId_fkey")
+  user          user?        @relation(fields: [updatedBy], references: [id], map: "ItemRawMaterial_updatedBy_fkey")
+
+  @@unique([itemId, rawMaterialId], map: "ItemRawMaterial_itemId_rawMaterialId_key")
+  @@index([itemModelId], map: "ItemRawMaterial_itemModelId_fkey")
+  @@index([rawMaterialId], map: "ItemRawMaterial_rawMaterialId_fkey")
+  @@index([updatedBy], map: "ItemRawMaterial_updatedBy_fkey")
+}
+
+model itemrequestdata {
+  id                                     String                  @id
+  serviceProcessId                       String?
+  isProcessRequest                       Boolean                 @default(false)
+  rawMaterialRequested                   Json?
+  requestedTo                            String?
+  requestedBy                            String?
+  requestedAt                            DateTime                @default(now())
+  approved                               Boolean?
+  approvedBy                             String?
+  approvedAt                             DateTime?
+  materialGiven                          Boolean?
+  updatedAt                              DateTime?
+  updatedBy                              String?
+  declined                               Boolean?
+  declinedAt                             DateTime?
+  declinedBy                             String?
+  declinedRemarks                        String?
+  warehouseId                            String?
+  materialRequested                      Json?
+  user_itemrequestdata_approvedByTouser  user?                   @relation("itemrequestdata_approvedByTouser", fields: [approvedBy], references: [id], map: "ItemRequestData_approvedBy_fkey")
+  user_itemrequestdata_declinedByTouser  user?                   @relation("itemrequestdata_declinedByTouser", fields: [declinedBy], references: [id], map: "ItemRequestData_declinedBy_fkey")
+  user_itemrequestdata_requestedByTouser user?                   @relation("itemrequestdata_requestedByTouser", fields: [requestedBy], references: [id], map: "ItemRequestData_requestedBy_fkey")
+  service_process_record                 service_process_record? @relation(fields: [serviceProcessId], references: [id], map: "ItemRequestData_serviceProcessId_fkey")
+  user_itemrequestdata_updatedByTouser   user?                   @relation("itemrequestdata_updatedByTouser", fields: [updatedBy], references: [id], map: "ItemRequestData_updatedBy_fkey")
+
+  @@index([approvedBy], map: "ItemRequestData_approvedBy_fkey")
+  @@index([declinedBy], map: "ItemRequestData_declinedBy_fkey")
+  @@index([requestedBy], map: "ItemRequestData_requestedBy_fkey")
+  @@index([serviceProcessId], map: "ItemRequestData_serviceProcessId_fkey")
+  @@index([updatedBy], map: "ItemRequestData_updatedBy_fkey")
+}
+
+model itemtype {
+  id                     String                   @id
+  name                   String                   @unique(map: "ItemType_name_key")
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  failureredirect        failureredirect[]
+  itemtype_stage         itemtype_stage[]
+  service_process_record service_process_record[]
+  stageflow              stageflow[]
+}
+
+model itemtype_stage {
+  id         String    @id
+  itemTypeId String?
+  stageId    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  itemtype   itemtype? @relation(fields: [itemTypeId], references: [id], map: "ItemType_Stage_itemTypeId_fkey")
+  stage      stage?    @relation(fields: [stageId], references: [id], map: "ItemType_Stage_stageId_fkey")
+
+  @@index([itemTypeId], map: "ItemType_Stage_itemTypeId_fkey")
+  @@index([stageId], map: "ItemType_Stage_stageId_fkey")
+}
+
+model itemusage {
+  id                     String                  @id
+  serviceProcessId       String?
+  empId                  String?
+  rawMaterialId          String?
+  quantityUsed           Float?
+  unit                   String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime
+  itemId                 String?
+  itemType               itemusage_itemType?
+  user                   user?                   @relation(fields: [empId], references: [id], map: "ItemUsage_empId_fkey")
+  rawmaterial            rawmaterial?            @relation(fields: [rawMaterialId], references: [id], map: "ItemUsage_rawMaterialId_fkey")
+  service_process_record service_process_record? @relation(fields: [serviceProcessId], references: [id], map: "ItemUsage_serviceProcessId_fkey")
+
+  @@index([empId], map: "ItemUsage_empId_fkey")
+  @@index([rawMaterialId], map: "ItemUsage_rawMaterialId_fkey")
+  @@index([serviceProcessId], map: "ItemUsage_serviceProcessId_fkey")
+}
+
+model manufacturingusage {
+  id                String       @id
+  itemId            String?
+  rawMaterialId     String?
+  quantityUsed      Float?
+  unit              String?
+  manufacturingDate DateTime     @default(now())
+  item              item?        @relation(fields: [itemId], references: [id], map: "ManufacturingUsage_itemId_fkey")
+  rawmaterial       rawmaterial? @relation(fields: [rawMaterialId], references: [id], map: "ManufacturingUsage_rawMaterialId_fkey")
+
+  @@index([itemId], map: "ManufacturingUsage_itemId_fkey")
+  @@index([rawMaterialId], map: "ManufacturingUsage_rawMaterialId_fkey")
+}
+
+model materialreturn {
+  id                                   String       @id
+  empId                                String?
+  rawMaterialId                        String?
+  installationItemId                   String?
+  returnedQty                          Float
+  unit                                 String?
+  warehouseId                          String?
+  returnedBy                           String?
+  remarks                              String?
+  returnedAt                           DateTime     @default(now())
+  user_materialreturn_empIdTouser      user?        @relation("materialreturn_empIdTouser", fields: [empId], references: [id], map: "MaterialReturn_empId_fkey")
+  rawmaterial                          rawmaterial? @relation(fields: [rawMaterialId], references: [id], map: "MaterialReturn_rawMaterialId_fkey")
+  user_materialreturn_returnedByTouser user?        @relation("materialreturn_returnedByTouser", fields: [returnedBy], references: [id], map: "MaterialReturn_returnedBy_fkey")
+
+  @@index([empId], map: "MaterialReturn_empId_idx")
+  @@index([rawMaterialId], map: "MaterialReturn_rawMaterialId_idx")
+  @@index([returnedBy], map: "MaterialReturn_returnedBy_idx")
+}
+
+model panelmaster {
+  id         String   @id
+  panelType  String?
+  moduleType String?
+  dcrType    String?
+  wattage    String?
+  hsnCode    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
+model payment {
+  id                                      String                   @id
+  poId                                    String
+  paymentDate                             DateTime?
+  amount                                  Decimal                  @db.Decimal(12, 4)
+  createdAt                               DateTime?                @default(now())
+  debitNoteId                             String?
+  adminApprovalDate                       DateTime?
+  adminApprovalStatus                     Boolean?
+  adminRemark                             String?
+  approvedByAdmin                         String?
+  billpaymentType                         payment_billpaymentType?
+  createdBy                               String?
+  docApprovalDate                         DateTime?
+  docApprovalRemark                       String?
+  docApprovalStatus                       Boolean?
+  docApprovedBy                           String?
+  paymentRemark                           String?
+  paymentRequestedBy                      String?
+  paymentStatus                           Boolean?
+  paymentTransferredBy                    String?
+  updatedAt                               DateTime?
+  updatedBy                               String?
+  paymentRejected                         Boolean?                 @default(false)
+  paymentRejectedAt                       DateTime?
+  paymentRejectedBy                       String?
+  user_payment_approvedByAdminTouser      user?                    @relation("payment_approvedByAdminTouser", fields: [approvedByAdmin], references: [id], map: "Payment_approvedByAdmin_fkey")
+  user_payment_createdByTouser            user?                    @relation("payment_createdByTouser", fields: [createdBy], references: [id], map: "Payment_createdBy_fkey")
+  debitnote                               debitnote?               @relation(fields: [debitNoteId], references: [id], map: "Payment_debitNoteId_fkey")
+  user_payment_docApprovedByTouser        user?                    @relation("payment_docApprovedByTouser", fields: [docApprovedBy], references: [id], map: "Payment_docApprovedBy_fkey")
+  user_payment_paymentRejectedByTouser    user?                    @relation("payment_paymentRejectedByTouser", fields: [paymentRejectedBy], references: [id], map: "Payment_paymentRejectedBy_fkey")
+  user_payment_paymentRequestedByTouser   user?                    @relation("payment_paymentRequestedByTouser", fields: [paymentRequestedBy], references: [id], map: "Payment_paymentRequestedBy_fkey")
+  user_payment_paymentTransferredByTouser user?                    @relation("payment_paymentTransferredByTouser", fields: [paymentTransferredBy], references: [id], map: "Payment_paymentTransferredBy_fkey")
+  purchaseorder                           purchaseorder            @relation(fields: [poId], references: [id], map: "Payment_poId_fkey")
+
+  @@index([approvedByAdmin], map: "Payment_approvedByAdmin_fkey")
+  @@index([createdBy], map: "Payment_createdBy_idx")
+  @@index([debitNoteId], map: "Payment_debitNoteId_fkey")
+  @@index([docApprovedBy], map: "Payment_docApprovedBy_fkey")
+  @@index([paymentRejectedBy], map: "Payment_paymentRejectedBy_fkey")
+  @@index([paymentRequestedBy], map: "Payment_paymentRequestedBy_fkey")
+  @@index([paymentTransferredBy], map: "Payment_paymentTransferredBy_fkey")
+  @@index([poId], map: "Payment_poId_fkey")
+}
+
+model prepo {
+  id                         String         @id
+  poId                       String?
+  vendorId                   String?
+  status                     prepo_status   @default(PREPO_DRAFT)
+  createdAt                  DateTime       @default(now())
+  updatedAt                  DateTime?
+  createdBy                  String?
+  updatedBy                  String?
+  poNumber                   String?
+  user_prepo_createdByTouser user?          @relation("prepo_createdByTouser", fields: [createdBy], references: [id], map: "PrePo_createdBy_fkey")
+  purchaseorder              purchaseorder? @relation(fields: [poId], references: [id], map: "PrePo_poId_fkey")
+  user_prepo_updatedByTouser user?          @relation("prepo_updatedByTouser", fields: [updatedBy], references: [id], map: "PrePo_updatedBy_fkey")
+  vendor                     vendor?        @relation(fields: [vendorId], references: [id], map: "PrePo_vendorId_fkey")
+  prepoitems                 prepoitems[]
+
+  @@index([createdBy], map: "PrePo_createdBy_fkey")
+  @@index([poId], map: "PrePo_poId_fkey")
+  @@index([updatedBy], map: "PrePo_updatedBy_fkey")
+  @@index([vendorId], map: "PrePo_vendorId_fkey")
+}
+
+model prepoitems {
+  id         String    @id
+  prePoId    String
+  itemId     String?
+  itemSource String?
+  itemName   String?
+  quantity   Decimal   @db.Decimal(18, 4)
+  unit       String?
+  rate       Decimal   @db.Decimal(12, 4)
+  updatedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  prepo      prepo     @relation(fields: [prePoId], references: [id], map: "PrePoItems_prePoId_fkey")
+
+  @@index([prePoId], map: "PrePoItems_prePoId_fkey")
+}
+
+model product {
+  id               String             @id
+  productName      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  failureredirect  failureredirect[]
+  product_item_map product_item_map[]
+  stageflow        stageflow[]
+}
+
+model product_item_map {
+  id        String   @id
+  productId String?
+  itemId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  item      item?    @relation(fields: [itemId], references: [id], map: "Product_Item_Map_itemId_fkey")
+  product   product? @relation(fields: [productId], references: [id], map: "Product_Item_Map_productId_fkey")
+
+  @@unique([productId, itemId], map: "Product_Item_Map_productId_itemId_key")
+  @@index([itemId], map: "Product_Item_Map_itemId_fkey")
+}
+
+model productionlog {
+  id                String   @id
+  itemId            String
+  subItem           String
+  quantityProduced  Int
+  manufacturingDate DateTime @default(now())
+  userId            String
+  item              item     @relation(fields: [itemId], references: [id], map: "ProductionLog_itemId_fkey")
+  user              user     @relation(fields: [userId], references: [id], map: "ProductionLog_userId_fkey")
+
+  @@index([itemId], map: "ProductionLog_itemId_fkey")
+  @@index([userId], map: "ProductionLog_userId_fkey")
+}
+
+model purchasefollowup {
+  id                                     String         @id
+  purchaseOrderId                        String?
+  vendorId                               String?
+  expectedDeliveryDate                   DateTime?
+  remark                                 String?        @db.Text
+  followUpDate                           DateTime       @default(now())
+  followUpBy                             String?
+  updatedAt                              DateTime
+  updatedBy                              String?
+  user_purchasefollowup_followUpByTouser user?          @relation("purchasefollowup_followUpByTouser", fields: [followUpBy], references: [id], map: "PurchaseFollowUp_followUpBy_fkey")
+  purchaseorder                          purchaseorder? @relation(fields: [purchaseOrderId], references: [id], map: "PurchaseFollowUp_purchaseOrderId_fkey")
+  user_purchasefollowup_updatedByTouser  user?          @relation("purchasefollowup_updatedByTouser", fields: [updatedBy], references: [id], map: "PurchaseFollowUp_updatedBy_fkey")
+  vendor                                 vendor?        @relation(fields: [vendorId], references: [id], map: "PurchaseFollowUp_vendorId_fkey")
+
+  @@index([followUpBy], map: "PurchaseFollowUp_followUpBy_fkey")
+  @@index([purchaseOrderId], map: "PurchaseFollowUp_purchaseOrderId_fkey")
+  @@index([updatedBy], map: "PurchaseFollowUp_updatedBy_fkey")
+  @@index([vendorId], map: "PurchaseFollowUp_vendorId_fkey")
+}
+
+model purchaseordebitnoteterm {
+  id               String           @id
+  purchaseOrderId  String?
+  debitNoteId      String?
+  termId           String
+  createdAt        DateTime         @default(now())
+  debitnote        debitnote?       @relation(fields: [debitNoteId], references: [id], map: "PurchaseOrDebitNoteTerm_debitNoteId_fkey")
+  purchaseorder    purchaseorder?   @relation(fields: [purchaseOrderId], references: [id], map: "PurchaseOrDebitNoteTerm_purchaseOrderId_fkey")
+  terms_conditions terms_conditions @relation(fields: [termId], references: [id], map: "PurchaseOrDebitNoteTerm_termId_fkey")
+
+  @@unique([debitNoteId, termId], map: "PurchaseOrDebitNoteTerm_debitNoteId_termId_key")
+  @@unique([purchaseOrderId, termId], map: "PurchaseOrDebitNoteTerm_purchaseOrderId_termId_key")
+  @@index([debitNoteId], map: "PurchaseOrDebitNoteTerm_debitNoteId_idx")
+  @@index([purchaseOrderId], map: "PurchaseOrDebitNoteTerm_purchaseOrderId_idx")
+  @@index([termId], map: "PurchaseOrDebitNoteTerm_termId_fkey")
+}
+
+model purchaseorder {
+  id                      String                       @id
+  poNumber                String                       @unique(map: "PurchaseOrder_poNumber_key")
+  financialYear           String?
+  companyId               String
+  vendorId                String
+  bankDetailId            String?
+  createdBy               String?
+  poDate                  DateTime                     @default(now())
+  gstType                 purchaseorder_gstType
+  subTotal                Decimal?                     @db.Decimal(15, 4)
+  totalCGST               Decimal?                     @db.Decimal(12, 4)
+  totalSGST               Decimal?                     @db.Decimal(12, 4)
+  totalIGST               Decimal?                     @db.Decimal(12, 4)
+  totalGST                Decimal?                     @db.Decimal(12, 4)
+  grandTotal              Decimal?                     @db.Decimal(15, 4)
+  status                  purchaseorder_status         @default(Draft)
+  remarks                 String?
+  pdfUrl                  String?
+  pdfName                 String?
+  pdfGeneratedAt          DateTime?
+  pdfGeneratedBy          String?
+  emailSentAt             DateTime?
+  emailSentBy             String?
+  emailResentCount        Int                          @default(0)
+  emailLastResentAt       DateTime?
+  paymentTerms            String?
+  deliveryTerms           String?
+  contactPerson           String?
+  cellNo                  String?
+  warranty                String?
+  createdAt               DateTime                     @default(now())
+  updatedAt               DateTime
+  companyName             String?
+  vendorName              String?
+  currency                String?                      @default("INR")
+  exchangeRate            Decimal?                     @default(1.0000) @db.Decimal(12, 4)
+  foreignGrandTotal       Decimal?                     @db.Decimal(15, 4)
+  foreignSubTotal         Decimal?                     @db.Decimal(15, 4)
+  gstRate                 Decimal?                     @db.Decimal(7, 4)
+  otherCharges            Json?
+  approvalStatus          purchaseorder_approvalStatus @default(Pending)
+  approvedAt              DateTime?
+  approvedBy              String?
+  rejectionReason         String?
+  warehouseId             String?
+  warehouseName           String?
+  expectedDeliveryDate    DateTime?
+  fixedGrandTotal         Decimal?                     @db.Decimal(15, 4)
+  rejectedAt              DateTime?
+  rejectedBy              String?
+  heading                 String?
+  termsConditionsId       String?
+  damagedstock            damagedstock[]
+  payment                 payment[]
+  prepo                   prepo[]
+  purchasefollowup        purchasefollowup[]
+  purchaseordebitnoteterm purchaseordebitnoteterm[]
+  bankdetail              bankdetail?                  @relation(fields: [bankDetailId], references: [id], map: "PurchaseOrder_bankDetailId_fkey")
+  company                 company                      @relation(fields: [companyId], references: [id], map: "PurchaseOrder_companyId_fkey")
+  user                    user?                        @relation(fields: [createdBy], references: [id], map: "PurchaseOrder_createdBy_fkey")
+  terms_conditions        terms_conditions?            @relation(fields: [termsConditionsId], references: [id], map: "PurchaseOrder_termsConditionsId_fkey")
+  vendor                  vendor                       @relation(fields: [vendorId], references: [id], map: "PurchaseOrder_vendorId_fkey")
+  purchaseorderbill       purchaseorderbill[]
+  purchaseorderitem       purchaseorderitem[]
+  purchaseorderreceipt    purchaseorderreceipt[]
+  returntovendor          returntovendor[]
+  vendorinvoices          vendorinvoices[]
 
   @@index([bankDetailId], map: "PurchaseOrder_bankDetailId_fkey")
   @@index([companyId], map: "PurchaseOrder_companyId_fkey")
@@ -869,38 +687,53 @@ model PurchaseOrder {
   @@index([vendorId], map: "PurchaseOrder_vendorId_fkey")
 }
 
-model PurchaseOrderItem {
-  id              String                 @id @default(uuid())
+model purchaseorderbill {
+  id              String        @id
   purchaseOrderId String
-  itemId          String
-  itemSource      String
-  itemName        String                 @db.Text
-  hsnCode         String?
-  modelNumber     String?
-  unit            String?
-  rate            Decimal                @db.Decimal(12, 4)
-  gstRate         Decimal?               @db.Decimal(7, 4)
-  quantity        Decimal                @db.Decimal(18, 4)
-  receivedQty     Decimal?               @default(0.0000) @db.Decimal(12, 4)
-  itemGSTType     String?
-  total           Decimal                @db.Decimal(18, 4)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  itemDetail      String?                @db.Text
-  amountInForeign Decimal?               @db.Decimal(12, 4)
-  rateInForeign   Decimal?               @db.Decimal(12, 4)
-  debitNoteId     String?
-  debitNote       DebitNote?             @relation(fields: [debitNoteId], references: [id])
-  purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
-  receipts        PurchaseOrderReceipt[] @relation("Item_Receipts")
-  returnToVendor  ReturnToVendor[]
+  fileName        String
+  fileUrl         String
+  mimeType        String
+  uploadedBy      String
+  createdAt       DateTime      @default(now())
+  invoiceNumber   String?
+  vehicleNumber   String?
+  purchaseorder   purchaseorder @relation(fields: [purchaseOrderId], references: [id], map: "PurchaseOrderBill_purchaseOrderId_fkey")
+
+  @@index([purchaseOrderId], map: "PurchaseOrderBill_purchaseOrderId_fkey")
+}
+
+model purchaseorderitem {
+  id                   String                 @id
+  purchaseOrderId      String
+  itemId               String
+  itemSource           String
+  itemName             String                 @db.Text
+  hsnCode              String?
+  modelNumber          String?
+  unit                 String?
+  rate                 Decimal                @db.Decimal(12, 4)
+  gstRate              Decimal?               @db.Decimal(7, 4)
+  quantity             Decimal                @db.Decimal(18, 4)
+  receivedQty          Decimal?               @default(0.0000) @db.Decimal(12, 4)
+  itemGSTType          String?
+  total                Decimal                @db.Decimal(18, 4)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  itemDetail           String?                @db.Text
+  amountInForeign      Decimal?               @db.Decimal(12, 4)
+  rateInForeign        Decimal?               @db.Decimal(12, 4)
+  debitNoteId          String?
+  debitnote            debitnote?             @relation(fields: [debitNoteId], references: [id], map: "PurchaseOrderItem_debitNoteId_fkey")
+  purchaseorder        purchaseorder          @relation(fields: [purchaseOrderId], references: [id], map: "PurchaseOrderItem_purchaseOrderId_fkey")
+  purchaseorderreceipt purchaseorderreceipt[]
+  returntovendor       returntovendor[]
 
   @@index([debitNoteId], map: "PurchaseOrderItem_debitNoteId_fkey")
   @@index([purchaseOrderId], map: "PurchaseOrderItem_purchaseOrderId_fkey")
 }
 
-model PurchaseOrderReceipt {
-  id                  String             @id @default(uuid())
+model purchaseorderreceipt {
+  id                  String             @id
   purchaseOrderId     String?
   purchaseOrderItemId String?
   itemId              String?
@@ -917,11 +750,11 @@ model PurchaseOrderReceipt {
   debitNoteId         String?
   invoiceNumber       String?
   vehicleNumber       String?
-  user                User?              @relation(fields: [createdBy], references: [id])
-  debitNote           DebitNote?         @relation(fields: [debitNoteId], references: [id])
-  purchaseOrder       PurchaseOrder?     @relation("PO_Receipts", fields: [purchaseOrderId], references: [id])
-  purchaseOrderItem   PurchaseOrderItem? @relation("Item_Receipts", fields: [purchaseOrderItemId], references: [id])
-  returnToVendor      ReturnToVendor[]
+  user                user?              @relation(fields: [createdBy], references: [id], map: "PurchaseOrderReceipt_createdBy_fkey")
+  debitnote           debitnote?         @relation(fields: [debitNoteId], references: [id], map: "PurchaseOrderReceipt_debitNoteId_fkey")
+  purchaseorder       purchaseorder?     @relation(fields: [purchaseOrderId], references: [id], map: "PurchaseOrderReceipt_purchaseOrderId_fkey")
+  purchaseorderitem   purchaseorderitem? @relation(fields: [purchaseOrderItemId], references: [id], map: "PurchaseOrderReceipt_purchaseOrderItemId_fkey")
+  returntovendor      returntovendor[]
 
   @@index([createdBy], map: "PurchaseOrderReceipt_createdBy_fkey")
   @@index([debitNoteId], map: "PurchaseOrderReceipt_debitNoteId_fkey")
@@ -929,218 +762,61 @@ model PurchaseOrderReceipt {
   @@index([purchaseOrderItemId], map: "PurchaseOrderReceipt_purchaseOrderItemId_fkey")
 }
 
-model PurchaseFollowUp {
-  id                   String         @id @default(uuid())
-  purchaseOrderId      String?
-  vendorId             String?
-  expectedDeliveryDate DateTime?
-  remark               String?        @db.Text
-  followUpDate         DateTime       @default(now())
-  followUpBy           String?
-  updatedAt            DateTime       @updatedAt
-  updatedBy            String?
-  followUpCreatedBy    User?          @relation("followUp_CreatedBy", fields: [followUpBy], references: [id])
-  purchaseOrder        PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
-  followUpUpdatedBy    User?          @relation("followUp_UpdatedBy", fields: [updatedBy], references: [id])
-  vendor               Vendor?        @relation(fields: [vendorId], references: [id])
+model rawmaterial {
+  id                               String               @id
+  name                             String?              @unique(map: "RawMaterial_name_key")
+  stock                            Float?
+  unit                             String?
+  createdAt                        DateTime             @default(now())
+  updatedAt                        DateTime
+  isUsed                           Boolean?             @default(true)
+  createdBy                        String?
+  minQty                           Float?
+  updatedBy                        String?
+  conversionFactor                 Float?
+  conversionUnit                   String?
+  description                      String?
+  hsnCode                          String?
+  itemrawmaterial                  itemrawmaterial[]
+  itemusage                        itemusage[]
+  manufacturingusage               manufacturingusage[]
+  materialreturn                   materialreturn[]
+  user_rawmaterial_createdByTouser user?                @relation("rawmaterial_createdByTouser", fields: [createdBy], references: [id], map: "RawMaterial_createdBy_fkey")
+  user_rawmaterial_updatedByTouser user?                @relation("rawmaterial_updatedByTouser", fields: [updatedBy], references: [id], map: "RawMaterial_updatedBy_fkey")
+  serviceusage                     serviceusage[]
+  stagerawmaterial                 stagerawmaterial[]
+  stockmovement                    stockmovement[]
+  useritemstock                    useritemstock[]
+  warehousestock                   warehousestock[]
 
-  @@index([followUpBy], map: "PurchaseFollowUp_followUpBy_fkey")
-  @@index([purchaseOrderId], map: "PurchaseFollowUp_purchaseOrderId_fkey")
-  @@index([updatedBy], map: "PurchaseFollowUp_updatedBy_fkey")
-  @@index([vendorId], map: "PurchaseFollowUp_vendorId_fkey")
+  @@index([createdBy], map: "RawMaterial_createdBy_fkey")
+  @@index([updatedBy], map: "RawMaterial_updatedBy_fkey")
 }
 
-model DamagedStock {
-  id                    String         @id @default(uuid())
-  purchaseOrderId       String?
-  itemId                String?
-  itemSource            String?
-  itemName              String?
-  quantity              Decimal        @db.Decimal(12, 4)
-  remarks               String?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  createdBy             String?
-  debitNoteId           String?
-  invoiceNumber         String?
-  status                DamageStatus   @default(Pending)
-  amountInForeign       Decimal?       @db.Decimal(12, 4)
-  gstRate               Decimal?       @db.Decimal(7, 4)
-  hsnCode               String?
-  itemDetail            String?        @db.Text
-  itemGSTType           String?
-  modelNumber           String?
-  rate                  Decimal?       @db.Decimal(12, 4)
-  rateInForeign         Decimal?       @db.Decimal(12, 4)
-  receivedQty           Decimal?       @default(0.0000) @db.Decimal(12, 4)
-  total                 Decimal?       @db.Decimal(12, 4)
-  unit                  String?
-  updatedBy             String?
-  damagedStockCreatedBy User?          @relation("Damaged_Stock_CreatedBy", fields: [createdBy], references: [id])
-  debitNote             DebitNote?     @relation(fields: [debitNoteId], references: [id])
-  purchaseOrder         PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
-  damagedStockUpdatedBy User?          @relation("Damaged_Stock_UpdatedBy", fields: [updatedBy], references: [id])
-
-  @@index([createdBy], map: "DamagedStock_createdBy_fkey")
-  @@index([debitNoteId], map: "DamagedStock_debitNoteId_fkey")
-  @@index([purchaseOrderId], map: "DamagedStock_purchaseOrderId_fkey")
-  @@index([updatedBy], map: "DamagedStock_updatedBy_fkey")
-}
-
-model PurchaseOrderBill {
-  id              String        @id @default(uuid())
-  purchaseOrderId String
-  fileName        String
-  fileUrl         String
-  mimeType        String
-  uploadedBy      String
-  createdAt       DateTime      @default(now())
-  invoiceNumber   String?
-  vehicleNumber   String?
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
-
-  @@index([purchaseOrderId], map: "PurchaseOrderBill_purchaseOrderId_fkey")
-}
-
-model DebitNote {
-  id                       String                    @id @default(uuid())
-  debitNoteNo              String                    @unique
-  financialYear            String?
-  purchaseOrderId          String?
-  companyId                String
-  companyName              String?
-  vendorId                 String
-  vendorName               String?
-  bankDetailId             String?
-  createdBy                String?
-  drNoteDate               DateTime                  @default(now())
-  gstType                  GSTType
-  gstRate                  Decimal?                  @db.Decimal(7, 4)
-  currency                 String?                   @default("INR")
-  exchangeRate             Decimal?                  @default(1.0000) @db.Decimal(12, 4)
-  foreignSubTotal          Decimal?                  @db.Decimal(12, 4)
-  foreignGrandTotal        Decimal?                  @db.Decimal(12, 4)
-  subTotal                 Decimal?                  @db.Decimal(12, 4)
-  totalCGST                Decimal?                  @db.Decimal(12, 4)
-  totalSGST                Decimal?                  @db.Decimal(12, 4)
-  totalIGST                Decimal?                  @db.Decimal(12, 4)
-  totalGST                 Decimal?                  @db.Decimal(12, 4)
-  grandTotal               Decimal?                  @db.Decimal(12, 4)
-  status                   DebitNoteStatus           @default(Debited)
-  remarks                  String?
-  pdfUrl                   String?
-  pdfName                  String?
-  pdfGeneratedAt           DateTime?
-  pdfGeneratedBy           String?
-  orgInvoiceNo             String?
-  orgInvoiceDate           DateTime?
-  gr_rr_no                 String?
-  transport                String?
-  vehicleNumber            String?
-  station                  String?
-  otherCharges             Json?
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  billReference            String?
-  approvalStatus           DebitNoteApprovalStatus   @default(Pending)
-  approvedAt               DateTime?
-  approvedBy               String?
-  rejectionReason          String?
-  warehouseId              String?
-  warehouseName            String?
-  fixedGrandTotal          Decimal?                  @db.Decimal(12, 4)
-  expectedDeliveryDate     DateTime?
-  damagedStock             DamagedStock[]
-  bankDetail               BankDetail?               @relation(fields: [bankDetailId], references: [id])
-  company                  Company                   @relation(fields: [companyId], references: [id])
-  user                     User?                     @relation(fields: [createdBy], references: [id])
-  vendor                   Vendor                    @relation(fields: [vendorId], references: [id])
-  debitNoteBills           DebitNoteBill[]
-  payments                 Payment[]
-  purchaseOrDebitNoteTerms PurchaseOrDebitNoteTerm[]
-  purchaseOrderItems       PurchaseOrderItem[]
-  purchaseOrderReceipts    PurchaseOrderReceipt[]
-  returnToVendor           ReturnToVendor[]
-
-  @@index([bankDetailId], map: "DebitNote_bankDetailId_fkey")
-  @@index([companyId], map: "DebitNote_companyId_fkey")
-  @@index([createdBy], map: "DebitNote_createdBy_fkey")
-  @@index([vendorId], map: "DebitNote_vendorId_fkey")
-}
-
-model DebitNoteBill {
-  id            String    @id @default(uuid())
-  debitNoteId   String
-  invoiceNumber String?
-  fileName      String
-  fileUrl       String
-  mimeType      String
-  uploadedBy    String
-  createdAt     DateTime  @default(now())
-  debitNote     DebitNote @relation(fields: [debitNoteId], references: [id])
-
-  @@index([debitNoteId], map: "DebitNoteBill_debitNoteId_fkey")
-}
-
-model Terms_Conditions {
-  id                       String                    @id @default(uuid())
-  createdAt                DateTime                  @default(now())
-  createdBy                String?
-  updatedAt                DateTime                  @updatedAt
-  updatedBy                String?
-  isActive                 Boolean?                  @default(true)
-  heading                  String?
-  terms                    Json?
-  purchaseOrDebitNoteTerms PurchaseOrDebitNoteTerm[]
-  purchaseOrders           PurchaseOrder[]
-  TermsCreatedBy           User?                     @relation("TermsCreatedBy", fields: [createdBy], references: [id])
-  TermsUpdatedBy           User?                     @relation("TermsUpdatedBy", fields: [updatedBy], references: [id])
-
-  @@index([createdBy], map: "Terms_Conditions_createdBy_fkey")
-  @@index([updatedBy], map: "Terms_Conditions_updatedBy_fkey")
-}
-
-model PurchaseOrDebitNoteTerm {
-  id              String           @id @default(uuid())
-  purchaseOrderId String?
-  debitNoteId     String?
-  termId          String
-  createdAt       DateTime         @default(now())
-  debitNote       DebitNote?       @relation(fields: [debitNoteId], references: [id])
-  purchaseOrder   PurchaseOrder?   @relation(fields: [purchaseOrderId], references: [id])
-  term            Terms_Conditions @relation(fields: [termId], references: [id])
-
-  @@unique([purchaseOrderId, termId])
-  @@unique([debitNoteId, termId])
-  @@index([purchaseOrderId])
-  @@index([debitNoteId])
-  @@index([termId], map: "PurchaseOrDebitNoteTerm_termId_fkey")
-}
-
-model ReturnToVendor {
-  id                  String                @id @default(uuid())
-  returnNumber        String                @unique
-  purchaseOrderId     String
-  purchaseOrderItemId String?
-  receiptId           String?
-  vendorId            String
-  reason              String?
-  damagedQty          Decimal               @db.Decimal(10, 2)
-  returnDate          DateTime              @default(now())
-  transporterName     String?
-  vehicleNo           String?
-  challanNo           String?
-  pdfUrl              String?
-  createdBy           String?
-  status              ReturnStatus          @default(Pending)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  debitNoteId         String?
-  debitNote           DebitNote?            @relation(fields: [debitNoteId], references: [id])
-  purchaseOrder       PurchaseOrder         @relation(fields: [purchaseOrderId], references: [id])
-  purchaseOrderItem   PurchaseOrderItem?    @relation(fields: [purchaseOrderItemId], references: [id])
-  receipt             PurchaseOrderReceipt? @relation(fields: [receiptId], references: [id])
-  vendor              Vendor                @relation(fields: [vendorId], references: [id])
+model returntovendor {
+  id                   String                @id
+  returnNumber         String                @unique(map: "ReturnToVendor_returnNumber_key")
+  purchaseOrderId      String
+  purchaseOrderItemId  String?
+  receiptId            String?
+  vendorId             String
+  reason               String?
+  damagedQty           Decimal               @db.Decimal(10, 2)
+  returnDate           DateTime              @default(now())
+  transporterName      String?
+  vehicleNo            String?
+  challanNo            String?
+  pdfUrl               String?
+  createdBy            String?
+  status               returntovendor_status @default(Pending)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime
+  debitNoteId          String?
+  debitnote            debitnote?            @relation(fields: [debitNoteId], references: [id], map: "ReturnToVendor_debitNoteId_fkey")
+  purchaseorder        purchaseorder         @relation(fields: [purchaseOrderId], references: [id], map: "ReturnToVendor_purchaseOrderId_fkey")
+  purchaseorderitem    purchaseorderitem?    @relation(fields: [purchaseOrderItemId], references: [id], map: "ReturnToVendor_purchaseOrderItemId_fkey")
+  purchaseorderreceipt purchaseorderreceipt? @relation(fields: [receiptId], references: [id], map: "ReturnToVendor_receiptId_fkey")
+  vendor               vendor                @relation(fields: [vendorId], references: [id], map: "ReturnToVendor_vendorId_fkey")
 
   @@index([debitNoteId], map: "ReturnToVendor_debitNoteId_fkey")
   @@index([purchaseOrderId], map: "ReturnToVendor_purchaseOrderId_fkey")
@@ -1149,135 +825,445 @@ model ReturnToVendor {
   @@index([vendorId], map: "ReturnToVendor_vendorId_fkey")
 }
 
-model Payment {
-  id                    String           @id @default(uuid())
-  poId                  String
-  paymentDate           DateTime?
-  amount                Decimal          @db.Decimal(12, 4)
-  createdAt             DateTime?        @default(now())
-  debitNoteId           String?
-  adminApprovalDate     DateTime?
-  adminApprovalStatus   Boolean?
-  adminRemark           String?
-  approvedByAdmin       String?
-  billpaymentType       BillPaymentType?
-  createdBy             String?
-  docApprovalDate       DateTime?
-  docApprovalRemark     String?
-  docApprovalStatus     Boolean?
-  docApprovedBy         String?
-  paymentRemark         String?
-  paymentRequestedBy    String?
-  paymentStatus         Boolean?
-  paymentTransferredBy  String?
-  updatedAt             DateTime?        @updatedAt
-  updatedBy             String?
-  paymentRejected       Boolean?         @default(false)
-  paymentRejectedAt     DateTime?
-  paymentRejectedBy     String?
-  approvedBy_Admin      User?            @relation("approvedBy_Admin", fields: [approvedByAdmin], references: [id])
-  paymentCreatedBy      User?            @relation("paymentCreatedBy", fields: [createdBy], references: [id])
-  debitNote             DebitNote?       @relation(fields: [debitNoteId], references: [id])
-  doc_ApprovedBy        User?            @relation("doc_ApprovedBy", fields: [docApprovedBy], references: [id])
-  payment_RejectedBy    User?            @relation("payment_RejectedBy", fields: [paymentRejectedBy], references: [id])
-  payment_RequestedBy   User?            @relation("payment_RequestedBy", fields: [paymentRequestedBy], references: [id])
-  payment_TransferredBy User?            @relation("payment_TransferredBy", fields: [paymentTransferredBy], references: [id])
-  purchaseOrder         PurchaseOrder    @relation(fields: [poId], references: [id])
-
-  @@index([createdBy])
-  @@index([approvedByAdmin], map: "Payment_approvedByAdmin_fkey")
-  @@index([debitNoteId], map: "Payment_debitNoteId_fkey")
-  @@index([docApprovedBy], map: "Payment_docApprovedBy_fkey")
-  @@index([paymentRejectedBy], map: "Payment_paymentRejectedBy_fkey")
-  @@index([paymentRequestedBy], map: "Payment_paymentRequestedBy_fkey")
-  @@index([paymentTransferredBy], map: "Payment_paymentTransferredBy_fkey")
-  @@index([poId], map: "Payment_poId_fkey")
+model role {
+  id        String   @id
+  name      String?  @unique(map: "Role_name_key")
+  createdAt DateTime @default(now())
+  user      user[]
 }
 
-model AuditLog {
-  id          String   @id @default(uuid())
-  entityType  String
-  entityId    String
-  action      String
-  performedBy String?
-  oldValue    Json?
-  newValue    Json?
-  timestamp   DateTime @default(now())
+model service_process_record {
+  id                                                       String                        @id
+  itemTypeId                                               String?
+  serialNumber                                             String?
+  stageId                                                  String?
+  initialStageId                                           String?
+  restartedFromStageId                                     String?
+  status                                                   service_process_record_status @default(PENDING)
+  createdAt                                                DateTime                      @default(now())
+  createdBy                                                String?
+  updatedAt                                                DateTime
+  updatedBy                                                String?
+  isRepaired                                               Boolean?
+  quantity                                                 Float?
+  finalRemarks                                             String?
+  finalStatus                                              String?
+  isClosed                                                 Boolean                       @default(false)
+  completedAt                                              DateTime?
+  itemName                                                 String?
+  productName                                              String?
+  subItemName                                              String?
+  disassembleSessionId                                     String?
+  disassembleStatus                                        String?
+  isDisassemblePending                                     Boolean?                      @default(false)
+  warehouseId                                              String?
+  directitemissue                                          directitemissue[]
+  disassemble_reusable_items                               disassemble_reusable_items[]
+  itemrequestdata                                          itemrequestdata[]
+  itemusage                                                itemusage[]
+  user_service_process_record_createdByTouser              user?                         @relation("service_process_record_createdByTouser", fields: [createdBy], references: [id], map: "Service_Process_Record_createdBy_fkey")
+  stage_service_process_record_initialStageIdTostage       stage?                        @relation("service_process_record_initialStageIdTostage", fields: [initialStageId], references: [id], map: "Service_Process_Record_initialStageId_fkey")
+  itemtype                                                 itemtype?                     @relation(fields: [itemTypeId], references: [id], map: "Service_Process_Record_itemTypeId_fkey")
+  stage_service_process_record_restartedFromStageIdTostage stage?                        @relation("service_process_record_restartedFromStageIdTostage", fields: [restartedFromStageId], references: [id], map: "Service_Process_Record_restartedFromStageId_fkey")
+  stage_service_process_record_stageIdTostage              stage?                        @relation("service_process_record_stageIdTostage", fields: [stageId], references: [id], map: "Service_Process_Record_stageId_fkey")
+  user_service_process_record_updatedByTouser              user?                         @relation("service_process_record_updatedByTouser", fields: [updatedBy], references: [id], map: "Service_Process_Record_updatedBy_fkey")
+  stageactivity                                            stageactivity[]
+
+  @@index([createdAt], map: "Service_Process_Record_createdAt_idx")
+  @@index([createdBy], map: "Service_Process_Record_createdBy_fkey")
+  @@index([initialStageId], map: "Service_Process_Record_initialStageId_fkey")
+  @@index([itemName], map: "Service_Process_Record_itemName_idx")
+  @@index([itemTypeId], map: "Service_Process_Record_itemTypeId_idx")
+  @@index([restartedFromStageId], map: "Service_Process_Record_restartedFromStageId_fkey")
+  @@index([serialNumber], map: "Service_Process_Record_serialNumber_idx")
+  @@index([stageId], map: "Service_Process_Record_stageId_idx")
+  @@index([status], map: "Service_Process_Record_status_idx")
+  @@index([subItemName], map: "Service_Process_Record_subItemName_idx")
+  @@index([updatedBy], map: "Service_Process_Record_updatedBy_fkey")
 }
 
-model VendorInvoices {
-  id               String         @id @default(uuid())
-  vendorId         String
-  poId             String?
-  invoiceUrl       String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  createdBy        String?
-  updatedBy        String?
-  invoiceNumber    String?
-  invoiceCreatedBy User?          @relation("invoice_CreatedBy", fields: [createdBy], references: [id])
-  purchaseOrder    PurchaseOrder? @relation(fields: [poId], references: [id])
-  invoiceUpdatedBy User?          @relation("invoice_UpdatedBy", fields: [updatedBy], references: [id])
-  vendor           Vendor         @relation(fields: [vendorId], references: [id])
+model servicerecord {
+  id                 String         @id
+  item               String?
+  subItem            String?
+  quantity           Float?
+  serialNumber       String?
+  faultAnalysis      Json?
+  isRepaired         Boolean?
+  repairedRejectedBy String?
+  remarks            String?
+  repairedParts      Json?
+  userId             String
+  servicedAt         DateTime       @default(now())
+  updatedAt          DateTime
+  initialRCA         Json?
+  user               user           @relation(fields: [userId], references: [id], map: "ServiceRecord_userId_fkey")
+  serviceusage       serviceusage[]
 
-  @@unique([vendorId, poId, invoiceNumber])
-  @@index([createdBy], map: "VendorInvoices_createdBy_fkey")
-  @@index([poId], map: "VendorInvoices_poId_fkey")
-  @@index([updatedBy], map: "VendorInvoices_updatedBy_fkey")
+  @@index([serialNumber], map: "ServiceRecord_serialNumber_idx")
+  @@index([userId], map: "ServiceRecord_userId_idx")
 }
 
-model InfraMaterial {
-  id                 String           @id @default(uuid())
-  name               String?          @unique
+model serviceusage {
+  id            String        @id
+  serviceId     String
+  rawMaterialId String?
+  quantityUsed  Float?
+  unit          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  rawmaterial   rawmaterial?  @relation(fields: [rawMaterialId], references: [id], map: "ServiceUsage_rawMaterialId_fkey")
+  servicerecord servicerecord @relation(fields: [serviceId], references: [id], map: "ServiceUsage_serviceId_fkey")
+
+  @@index([rawMaterialId], map: "ServiceUsage_rawMaterialId_fkey")
+  @@index([serviceId], map: "ServiceUsage_serviceId_fkey")
+}
+
+model stage {
+  id                                                                        String                   @id
+  name                                                                      String                   @unique(map: "Stage_name_key")
+  description                                                               String?
+  createdAt                                                                 DateTime                 @default(now())
+  updatedAt                                                                 DateTime
+  failureredirect                                                           failureredirect[]
+  itemtype_stage                                                            itemtype_stage[]
+  service_process_record_service_process_record_initialStageIdTostage       service_process_record[] @relation("service_process_record_initialStageIdTostage")
+  service_process_record_service_process_record_restartedFromStageIdTostage service_process_record[] @relation("service_process_record_restartedFromStageIdTostage")
+  service_process_record_service_process_record_stageIdTostage              service_process_record[] @relation("service_process_record_stageIdTostage")
+  stageactivity                                                             stageactivity[]
+  stageflow_stageflow_currentStageIdTostage                                 stageflow[]              @relation("stageflow_currentStageIdTostage")
+  stageflow_stageflow_nextStageIdTostage                                    stageflow[]              @relation("stageflow_nextStageIdTostage")
+  stagerawmaterial                                                          stagerawmaterial[]
+}
+
+model stageactivity {
+  id                     String                       @id
+  serviceProcessId       String?
+  empId                  String?
+  stageId                String?
+  status                 stageactivity_status         @default(PENDING)
+  isCurrent              Boolean                      @default(false)
+  failureReason          stageactivity_failureReason?
+  remarks                String?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime
+  acceptedAt             DateTime?
+  completedAt            DateTime?
+  outcome                String?
+  startedAt              DateTime?
+  user                   user?                        @relation(fields: [empId], references: [id], map: "StageActivity_empId_fkey")
+  service_process_record service_process_record?      @relation(fields: [serviceProcessId], references: [id], map: "StageActivity_serviceProcessId_fkey")
+  stage                  stage?                       @relation(fields: [stageId], references: [id], map: "StageActivity_stageId_fkey")
+
+  @@index([empId], map: "StageActivity_empId_fkey")
+  @@index([serviceProcessId], map: "StageActivity_serviceProcessId_fkey")
+  @@index([stageId], map: "StageActivity_stageId_fkey")
+}
+
+model stageflow {
+  id                                    String    @id
+  itemTypeId                            String?
+  currentStageId                        String?
+  nextStageId                           String?
+  createdAt                             DateTime  @default(now())
+  updatedAt                             DateTime
+  productId                             String?
+  stage_stageflow_currentStageIdTostage stage?    @relation("stageflow_currentStageIdTostage", fields: [currentStageId], references: [id], map: "StageFlow_currentStageId_fkey")
+  itemtype                              itemtype? @relation(fields: [itemTypeId], references: [id], map: "StageFlow_itemTypeId_fkey")
+  stage_stageflow_nextStageIdTostage    stage?    @relation("stageflow_nextStageIdTostage", fields: [nextStageId], references: [id], map: "StageFlow_nextStageId_fkey")
+  product                               product?  @relation(fields: [productId], references: [id], map: "StageFlow_productId_fkey")
+
+  @@index([currentStageId], map: "StageFlow_currentStageId_fkey")
+  @@index([itemTypeId], map: "StageFlow_itemTypeId_fkey")
+  @@index([nextStageId], map: "StageFlow_nextStageId_fkey")
+  @@index([productId], map: "StageFlow_productId_fkey")
+}
+
+model stagerawmaterial {
+  id            String       @id
+  stageId       String?
+  rawMaterialId String?
+  createdAt     DateTime?    @default(now())
+  updatedAt     DateTime?
+  rawmaterial   rawmaterial? @relation(fields: [rawMaterialId], references: [id], map: "StageRawMaterial_rawMaterialId_fkey")
+  stage         stage?       @relation(fields: [stageId], references: [id], map: "StageRawMaterial_stageId_fkey")
+
+  @@unique([stageId, rawMaterialId], map: "StageRawMaterial_stageId_rawMaterialId_key")
+  @@index([rawMaterialId], map: "StageRawMaterial_rawMaterialId_fkey")
+}
+
+model stockmovement {
+  id                 String                  @id
+  rawMaterialId      String?
+  userId             String?
+  warehouseId        String?
+  quantity           Float?
   unit               String?
-  hsnCode            String?
-  conversionUnit     String?
-  conversionFactor   Float?
-  isUsed             Boolean?         @default(true)
-  description        String?
-  createdAt          DateTime         @default(now())
-  createdBy          String?
-  updatedAt          DateTime         @updatedAt
-  updatedBy          String?
-  infraItemCreatedBy User?            @relation("InfraItemCreatedByUser", fields: [createdBy], references: [id])
-  infraItemUpdatedBy User?            @relation("InfroItemUpdatedByUser", fields: [updatedBy], references: [id])
-  stockMovements     StockMovement[]
-  warehouseStocks    WarehouseStock[]
+  type               String?
+  timestamp          DateTime                @default(now())
+  batchId            String?
+  infraItemId        String?
+  toolEquipmentId    String?
+  itemId             String?
+  itemType           stockmovement_itemType?
+  stockmovementbatch stockmovementbatch?     @relation(fields: [batchId], references: [id], map: "StockMovement_batchId_fkey")
+  inframaterial      inframaterial?          @relation(fields: [infraItemId], references: [id], map: "StockMovement_infraItemId_fkey")
+  rawmaterial        rawmaterial?            @relation(fields: [rawMaterialId], references: [id], map: "StockMovement_rawMaterialId_fkey")
+  toolsequipments    toolsequipments?        @relation(fields: [toolEquipmentId], references: [id], map: "StockMovement_toolEquipmentId_fkey")
+  user               user?                   @relation(fields: [userId], references: [id], map: "StockMovement_userId_fkey")
 
-  @@index([createdBy], map: "InfraMaterial_createdBy_fkey")
-  @@index([updatedBy], map: "InfraMaterial_updatedBy_fkey")
+  @@index([batchId], map: "StockMovement_batchId_fkey")
+  @@index([infraItemId], map: "StockMovement_infraItemId_fkey")
+  @@index([rawMaterialId], map: "StockMovement_rawMaterialId_fkey")
+  @@index([toolEquipmentId], map: "StockMovement_toolEquipmentId_fkey")
+  @@index([userId], map: "StockMovement_userId_fkey")
+  @@index([warehouseId], map: "StockMovement_warehouseId_fkey")
 }
 
-model ToolsEquipments {
-  id               String           @id @default(uuid())
-  name             String?          @unique
-  unit             String?
-  hsnCode          String?
-  conversionUnit   String?
-  conversionFactor Float?
-  isUsed           Boolean?         @default(true)
-  description      String?
-  createdAt        DateTime         @default(now())
-  createdBy        String?
-  updatedAt        DateTime         @updatedAt
-  updatedBy        String?
-  stockMovements   StockMovement[]
-  toolsCreatedBy   User?            @relation("ToolsCreatedByUser", fields: [createdBy], references: [id])
-  toolsUpdatedBy   User?            @relation("ToolsUpdatedByUser", fields: [updatedBy], references: [id])
-  warehouseStocks  WarehouseStock[]
+model stockmovementbatch {
+  id            String          @id
+  billPhotos    Json?
+  createdAt     DateTime?       @default(now())
+  createdBy     String?
+  stockmovement stockmovement[]
+  user          user?           @relation(fields: [createdBy], references: [id], map: "StockMovementBatch_createdBy_fkey")
+
+  @@index([createdBy], map: "StockMovementBatch_createdBy_fkey")
+}
+
+model terms_conditions {
+  id                                    String                    @id
+  createdAt                             DateTime                  @default(now())
+  createdBy                             String?
+  updatedAt                             DateTime
+  updatedBy                             String?
+  isActive                              Boolean?                  @default(true)
+  heading                               String?
+  terms                                 Json?
+  purchaseordebitnoteterm               purchaseordebitnoteterm[]
+  purchaseorder                         purchaseorder[]
+  user_terms_conditions_createdByTouser user?                     @relation("terms_conditions_createdByTouser", fields: [createdBy], references: [id], map: "Terms_Conditions_createdBy_fkey")
+  user_terms_conditions_updatedByTouser user?                     @relation("terms_conditions_updatedByTouser", fields: [updatedBy], references: [id], map: "Terms_Conditions_updatedBy_fkey")
+
+  @@index([createdBy], map: "Terms_Conditions_createdBy_fkey")
+  @@index([updatedBy], map: "Terms_Conditions_updatedBy_fkey")
+}
+
+model toolsequipments {
+  id                                   String           @id
+  name                                 String?          @unique(map: "ToolsEquipments_name_key")
+  unit                                 String?
+  hsnCode                              String?
+  conversionUnit                       String?
+  conversionFactor                     Float?
+  isUsed                               Boolean?         @default(true)
+  description                          String?
+  createdAt                            DateTime         @default(now())
+  createdBy                            String?
+  updatedAt                            DateTime
+  updatedBy                            String?
+  stockmovement                        stockmovement[]
+  user_toolsequipments_createdByTouser user?            @relation("toolsequipments_createdByTouser", fields: [createdBy], references: [id], map: "ToolsEquipments_createdBy_fkey")
+  user_toolsequipments_updatedByTouser user?            @relation("toolsequipments_updatedByTouser", fields: [updatedBy], references: [id], map: "ToolsEquipments_updatedBy_fkey")
+  warehousestock                       warehousestock[]
 
   @@index([createdBy], map: "ToolsEquipments_createdBy_fkey")
   @@index([updatedBy], map: "ToolsEquipments_updatedBy_fkey")
 }
 
-enum ItemCategory {
-  RAW
-  INFRA
-  TOOL
-  INSTALLATION
+model unit {
+  id        String   @id
+  name      String   @unique(map: "Unit_name_key")
+  createdAt DateTime @default(now())
 }
 
-enum FailureReason {
+model user {
+  id                                                                        String                       @id
+  name                                                                      String?
+  email                                                                     String?                      @unique(map: "User_email_key")
+  contact                                                                   String?
+  password                                                                  String?
+  roleId                                                                    String?
+  block                                                                     String?
+  district                                                                  String?
+  state                                                                     String?
+  isActive                                                                  Boolean?
+  refreshToken                                                              String?
+  createdAt                                                                 DateTime                     @default(now())
+  updatedAt                                                                 DateTime                     @default(now())
+  warehouseId                                                               String?
+  allotedCompany                                                            Json?
+  bankdetail                                                                bankdetail[]
+  company                                                                   company[]
+  damagedstock_damagedstock_createdByTouser                                 damagedstock[]               @relation("damagedstock_createdByTouser")
+  damagedstock_damagedstock_updatedByTouser                                 damagedstock[]               @relation("damagedstock_updatedByTouser")
+  debitnote                                                                 debitnote[]
+  directitemissue_directitemissue_issuedByTouser                            directitemissue[]            @relation("directitemissue_issuedByTouser")
+  directitemissue_directitemissue_issuedToTouser                            directitemissue[]            @relation("directitemissue_issuedToTouser")
+  directitemissue_directitemissue_updatedByTouser                           directitemissue[]            @relation("directitemissue_updatedByTouser")
+  disassemble_reusable_items_disassemble_reusable_items_assembleEmpIdTouser disassemble_reusable_items[] @relation("disassemble_reusable_items_assembleEmpIdTouser")
+  disassemble_reusable_items_disassemble_reusable_items_empIdTouser         disassemble_reusable_items[] @relation("disassemble_reusable_items_empIdTouser")
+  inframaterial_inframaterial_createdByTouser                               inframaterial[]              @relation("inframaterial_createdByTouser")
+  inframaterial_inframaterial_updatedByTouser                               inframaterial[]              @relation("inframaterial_updatedByTouser")
+  itemrawmaterial                                                           itemrawmaterial[]
+  itemrequestdata_itemrequestdata_approvedByTouser                          itemrequestdata[]            @relation("itemrequestdata_approvedByTouser")
+  itemrequestdata_itemrequestdata_declinedByTouser                          itemrequestdata[]            @relation("itemrequestdata_declinedByTouser")
+  itemrequestdata_itemrequestdata_requestedByTouser                         itemrequestdata[]            @relation("itemrequestdata_requestedByTouser")
+  itemrequestdata_itemrequestdata_updatedByTouser                           itemrequestdata[]            @relation("itemrequestdata_updatedByTouser")
+  itemusage                                                                 itemusage[]
+  materialreturn_materialreturn_empIdTouser                                 materialreturn[]             @relation("materialreturn_empIdTouser")
+  materialreturn_materialreturn_returnedByTouser                            materialreturn[]             @relation("materialreturn_returnedByTouser")
+  payment_payment_approvedByAdminTouser                                     payment[]                    @relation("payment_approvedByAdminTouser")
+  payment_payment_createdByTouser                                           payment[]                    @relation("payment_createdByTouser")
+  payment_payment_docApprovedByTouser                                       payment[]                    @relation("payment_docApprovedByTouser")
+  payment_payment_paymentRejectedByTouser                                   payment[]                    @relation("payment_paymentRejectedByTouser")
+  payment_payment_paymentRequestedByTouser                                  payment[]                    @relation("payment_paymentRequestedByTouser")
+  payment_payment_paymentTransferredByTouser                                payment[]                    @relation("payment_paymentTransferredByTouser")
+  prepo_prepo_createdByTouser                                               prepo[]                      @relation("prepo_createdByTouser")
+  prepo_prepo_updatedByTouser                                               prepo[]                      @relation("prepo_updatedByTouser")
+  productionlog                                                             productionlog[]
+  purchasefollowup_purchasefollowup_followUpByTouser                        purchasefollowup[]           @relation("purchasefollowup_followUpByTouser")
+  purchasefollowup_purchasefollowup_updatedByTouser                         purchasefollowup[]           @relation("purchasefollowup_updatedByTouser")
+  purchaseorder                                                             purchaseorder[]
+  purchaseorderreceipt                                                      purchaseorderreceipt[]
+  rawmaterial_rawmaterial_createdByTouser                                   rawmaterial[]                @relation("rawmaterial_createdByTouser")
+  rawmaterial_rawmaterial_updatedByTouser                                   rawmaterial[]                @relation("rawmaterial_updatedByTouser")
+  service_process_record_service_process_record_createdByTouser             service_process_record[]     @relation("service_process_record_createdByTouser")
+  service_process_record_service_process_record_updatedByTouser             service_process_record[]     @relation("service_process_record_updatedByTouser")
+  servicerecord                                                             servicerecord[]
+  stageactivity                                                             stageactivity[]
+  stockmovement                                                             stockmovement[]
+  stockmovementbatch                                                        stockmovementbatch[]
+  terms_conditions_terms_conditions_createdByTouser                         terms_conditions[]           @relation("terms_conditions_createdByTouser")
+  terms_conditions_terms_conditions_updatedByTouser                         terms_conditions[]           @relation("terms_conditions_updatedByTouser")
+  toolsequipments_toolsequipments_createdByTouser                           toolsequipments[]            @relation("toolsequipments_createdByTouser")
+  toolsequipments_toolsequipments_updatedByTouser                           toolsequipments[]            @relation("toolsequipments_updatedByTouser")
+  role                                                                      role?                        @relation(fields: [roleId], references: [id], map: "User_roleId_fkey")
+  useritemstock                                                             useritemstock[]
+  vendor                                                                    vendor[]
+  vendorinvoices_vendorinvoices_createdByTouser                             vendorinvoices[]             @relation("vendorinvoices_createdByTouser")
+  vendorinvoices_vendorinvoices_updatedByTouser                             vendorinvoices[]             @relation("vendorinvoices_updatedByTouser")
+
+  @@index([roleId], map: "User_roleId_fkey")
+}
+
+model useritemstock {
+  id            String                  @id
+  empId         String?
+  rawMaterialId String?
+  quantity      Float                   @default(0)
+  unit          String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime
+  itemId        String?
+  itemType      useritemstock_itemType?
+  user          user?                   @relation(fields: [empId], references: [id], map: "UserItemStock_empId_fkey")
+  rawmaterial   rawmaterial?            @relation(fields: [rawMaterialId], references: [id], map: "UserItemStock_rawMaterialId_fkey")
+
+  @@unique([empId, itemId, itemType], map: "UserItemStock_empId_itemId_itemType_key")
+  @@unique([empId, rawMaterialId], map: "UserItemStock_empId_rawMaterialId_key")
+  @@index([rawMaterialId], map: "UserItemStock_rawMaterialId_fkey")
+}
+
+model vendor {
+  id                String             @id
+  name              String
+  email             String?
+  gstNumber         String?
+  address           String?
+  city              String?
+  state             String?
+  pincode           String?
+  country           String?            @default("INDIA")
+  currency          String?            @default("INR")
+  contactNumber     String?
+  alternateNumber   String?
+  createdBy         String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime
+  exchangeRate      Decimal?
+  isActive          Boolean?           @default(true)
+  contactPerson     String?
+  accountHolder     String?
+  accountNumber     String?
+  bankName          String?
+  ifscCode          String?
+  vendorAadhaar     String?
+  vendorPanCard     String?
+  aadhaarUrl        String?
+  pancardUrl        String?
+  contactNoVerified Boolean?           @default(false)
+  mailVerified      Boolean?           @default(false)
+  zipCode           String?
+  referenceBy       String?
+  bankdetail        bankdetail[]
+  debitnote         debitnote[]
+  prepo             prepo[]
+  purchasefollowup  purchasefollowup[]
+  purchaseorder     purchaseorder[]
+  returntovendor    returntovendor[]
+  user              user               @relation(fields: [createdBy], references: [id], map: "Vendor_createdBy_fkey")
+  vendorinvoices    vendorinvoices[]
+
+  @@index([createdBy], map: "Vendor_createdBy_fkey")
+}
+
+model vendorinvoices {
+  id                                  String         @id
+  vendorId                            String
+  poId                                String?
+  invoiceUrl                          String?
+  createdAt                           DateTime       @default(now())
+  updatedAt                           DateTime
+  createdBy                           String?
+  updatedBy                           String?
+  invoiceNumber                       String?
+  user_vendorinvoices_createdByTouser user?          @relation("vendorinvoices_createdByTouser", fields: [createdBy], references: [id], map: "VendorInvoices_createdBy_fkey")
+  purchaseorder                       purchaseorder? @relation(fields: [poId], references: [id], map: "VendorInvoices_poId_fkey")
+  user_vendorinvoices_updatedByTouser user?          @relation("vendorinvoices_updatedByTouser", fields: [updatedBy], references: [id], map: "VendorInvoices_updatedBy_fkey")
+  vendor                              vendor         @relation(fields: [vendorId], references: [id], map: "VendorInvoices_vendorId_fkey")
+
+  @@unique([vendorId, poId, invoiceNumber], map: "VendorInvoices_vendorId_poId_invoiceNumber_key")
+  @@index([createdBy], map: "VendorInvoices_createdBy_fkey")
+  @@index([poId], map: "VendorInvoices_poId_fkey")
+  @@index([updatedBy], map: "VendorInvoices_updatedBy_fkey")
+}
+
+model warehouse {
+  id        String   @id
+  name      String?  @unique(map: "Warehouse_name_key")
+  state     String?
+  createdAt DateTime @default(now())
+}
+
+model warehousestock {
+  id              String                   @id
+  warehouseId     String?
+  rawMaterialId   String?
+  quantity        Float?                   @default(0)
+  unit            String?
+  isUsed          Boolean?                 @default(true)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime
+  damagedQty      Float?                   @default(0)
+  infraItemId     String?
+  itemType        warehousestock_itemType?
+  toolEquipmentId String?
+  itemId          String?
+  inframaterial   inframaterial?           @relation(fields: [infraItemId], references: [id], map: "WarehouseStock_infraItemId_fkey")
+  rawmaterial     rawmaterial?             @relation(fields: [rawMaterialId], references: [id], map: "WarehouseStock_rawMaterialId_fkey")
+  toolsequipments toolsequipments?         @relation(fields: [toolEquipmentId], references: [id], map: "WarehouseStock_toolEquipmentId_fkey")
+
+  @@unique([warehouseId, infraItemId], map: "WarehouseStock_warehouseId_infraItemId_key")
+  @@unique([warehouseId, rawMaterialId], map: "WarehouseStock_warehouseId_rawMaterialId_key")
+  @@unique([warehouseId, toolEquipmentId], map: "WarehouseStock_warehouseId_toolEquipmentId_key")
+  @@index([infraItemId], map: "WarehouseStock_infraItemId_fkey")
+  @@index([rawMaterialId], map: "WarehouseStock_rawMaterialId_fkey")
+  @@index([toolEquipmentId], map: "WarehouseStock_toolEquipmentId_fkey")
+  @@index([warehouseId], map: "WarehouseStock_warehouseId_idx")
+}
+
+enum failureredirect_failureReason {
   VIBRATION
   OVERLOAD
   EARTHING
@@ -1288,7 +1274,15 @@ enum FailureReason {
   OTHER
 }
 
-enum ActivityStatus {
+enum prepo_status {
+  PREPO_DRAFT
+  PREPO_REQUESTED
+  PREPO_APPROVED
+  PREPO_REJECTED
+  PO_GENERATED
+}
+
+enum stageactivity_status {
   PENDING
   IN_PROGRESS
   COMPLETED
@@ -1297,7 +1291,7 @@ enum ActivityStatus {
   SKIPPED
 }
 
-enum ProcessStatus {
+enum service_process_record_status {
   PENDING
   IN_PROGRESS
   FAILED
@@ -1305,7 +1299,18 @@ enum ProcessStatus {
   COMPLETED
 }
 
-enum GSTType {
+enum stageactivity_failureReason {
+  VIBRATION
+  OVERLOAD
+  EARTHING
+  LEAKAGE
+  HIGH_PLAY
+  NOISE
+  REJECTED
+  OTHER
+}
+
+enum purchaseorder_gstType {
   IGST_5
   IGST_12
   IGST_18
@@ -1320,7 +1325,70 @@ enum GSTType {
   LGST_ITEMWISE
 }
 
-enum POStatus {
+enum useritemstock_itemType {
+  RAW
+  INFRA
+  TOOL
+  INSTALLATION
+}
+
+enum itemusage_itemType {
+  RAW
+  INFRA
+  TOOL
+  INSTALLATION
+}
+
+enum payment_billpaymentType {
+  Advance_Payment
+  Partial_Payment
+  Full_Payment
+  Full_Payment_In_Advance
+}
+
+enum warehousestock_itemType {
+  RAW
+  INFRA
+  TOOL
+  INSTALLATION
+}
+
+enum debitnote_gstType {
+  IGST_5
+  IGST_12
+  IGST_18
+  IGST_28
+  IGST_EXEMPTED
+  LGST_5
+  LGST_12
+  LGST_18
+  LGST_28
+  LGST_EXEMPTED
+  IGST_ITEMWISE
+  LGST_ITEMWISE
+}
+
+enum damagedstock_status {
+  Pending
+  Debited
+  Resolved
+}
+
+enum stockmovement_itemType {
+  RAW
+  INFRA
+  TOOL
+  INSTALLATION
+}
+
+enum returntovendor_status {
+  Pending
+  InTransit
+  ReceivedByVendor
+  Closed
+}
+
+enum purchaseorder_status {
   Draft
   Generated_Downloaded
   Approval_Sent
@@ -1331,63 +1399,21 @@ enum POStatus {
   Cancelled
 }
 
-enum POApprovalStatus {
-  Pending
-  Approved
-  Rejected
-}
-
-enum DamageStatus {
-  Pending
-  Debited
-  Resolved
-}
-
-enum DebitNoteStatus {
+enum debitnote_status {
   Debited
   PartiallyReceived
   Received
   Cancelled
 }
 
-enum DebitNoteApprovalStatus {
+enum debitnote_approvalStatus {
   Pending
   Approved
   Rejected
 }
 
-enum ReturnStatus {
+enum purchaseorder_approvalStatus {
   Pending
-  InTransit
-  ReceivedByVendor
-  Closed
-}
-
-enum BillPaymentType {
-  Advance_Payment
-  Partial_Payment
-  Full_Payment
-  Full_Payment_In_Advance
-}
-
-model MaterialReturn {
-  id                 String   @id @default(uuid())
-  empId              String?
-  rawMaterialId      String?
-  installationItemId String?
-  returnedQty        Float
-  unit               String?
-  warehouseId        String?
-  returnedBy         String?
-  remarks            String?
-  returnedAt         DateTime @default(now())
-
-  employee        User?        @relation("MaterialReturn_Employee", fields: [empId], references: [id])
-  storekeeperUser User?        @relation("MaterialReturn_Storekeeper", fields: [returnedBy], references: [id])
-  rawMaterial     RawMaterial? @relation(fields: [rawMaterialId], references: [id])
-
-  @@index([empId])
-  @@index([rawMaterialId])
-  @@index([returnedBy])
-  @@map("MaterialReturn")
+  Approved
+  Rejected
 }
