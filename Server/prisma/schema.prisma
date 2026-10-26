@@ -476,6 +476,7 @@ model DirectItemIssue {
   department        String?
   issuedToName      String?
   materialIssued    Json?
+  proof_images      String?
   issuedByUser      User?                   @relation("IssuedByUser", fields: [issuedBy], references: [id])
   issuedToUser      User?                   @relation("IssuedToUser", fields: [issuedTo], references: [id])
   serviceProcess    Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])

@@ -1,0 +1,1 @@
+ALTER TABLE `DirectItemIssue` ADD COLUMN `proof_images` VARCHAR(191) NULL;
