@@ -88,4 +88,10 @@ router.get("/approved-installation-excel", installationDataController.exportVT2A
 router.get("/installed-system-excel", installationDataController.exportInstalledSystemExcel);
 router.post("/installation-stage-update", upload.single('file'), installationDataController.bulkUpdateStageFromExcel);
 
+
+// container 
+router.post("/container", commonController.createContainer);
+router.get("/container", commonController.getAllContainers);
+
+
 module.exports = router;

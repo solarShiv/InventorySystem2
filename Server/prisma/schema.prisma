@@ -1392,3 +1392,16 @@ model MaterialReturn {
   @@index([returnedBy])
   @@map("MaterialReturn")
 }
+
+model item_container_wise_history {
+  id                   String @id @default(uuid())
+  item_id              String
+  stock_with_container Json?
+
+  @@index([item_id])
+}
+
+model container_list {
+  id   String @id @default(uuid())
+  name String
+}

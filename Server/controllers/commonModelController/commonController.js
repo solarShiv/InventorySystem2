@@ -2,7 +2,10 @@ const XLSX = require("xlsx");
 const mongoose = require("mongoose");
 const SystemOrder = require("../../models/systemInventoryModels/systemOrderSchema");
 const AppVersion = require("../../models/commonModels/appVersionSchema");
-const InstallationInventory = require("../../models/systemInventoryModels/installationInventorySchema")
+const InstallationInventory = require("../../models/systemInventoryModels/installationInventorySchema");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
 const createAppVersion = async (req, res) => {
     try {
         const newAppVersion = new AppVersion({
@@ -143,8 +146,155 @@ const importSystemOrdersFromExcel = async (req, res) => {
 };
 
 
+
+
+// CREATE container
+const createContainer = async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Container name is required",
+      });
+    }
+
+    const container = await prisma.container_list.create({
+      data: {
+        name: name.trim(),
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Container created successfully",
+      data: container,
+    });
+  } catch (error) {
+    console.error("Create container error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create container",
+    });
+  }
+};
+
+// GET all containers
+const getAllContainers = async (req, res) => {
+  try {
+    const containers = await prisma.container_list.findMany({
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: containers.length,
+      data: containers,
+    });
+  } catch (error) {
+    console.error("Get containers error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch containers",
+    });
+  }
+};
+
+// UPDATE container
+const updateContainer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Container name is required",
+      });
+    }
+
+    const existingContainer = await prisma.container_list.findUnique({
+      where: { id },
+    });
+
+    if (!existingContainer) {
+      return res.status(404).json({
+        success: false,
+        message: "Container not found",
+      });
+    }
+
+    const updatedContainer = await prisma.container_list.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Container updated successfully",
+      data: updatedContainer,
+    });
+  } catch (error) {
+    console.error("Update container error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update container",
+    });
+  }
+};
+
+// DELETE container
+const deleteContainer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existingContainer = await prisma.container_list.findUnique({
+      where: { id },
+    });
+
+    if (!existingContainer) {
+      return res.status(404).json({
+        success: false,
+        message: "Container not found",
+      });
+    }
+
+    await prisma.container_list.delete({
+      where: { id },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Container deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete container error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete container",
+    });
+  }
+};
+
+
+
+
+
 module.exports = {
     createAppVersion,
     updateInstallationInventoryFromExcel,
-    importSystemOrdersFromExcel
+    importSystemOrdersFromExcel,
+    createContainer,
+    getAllContainers,
+    updateContainer,
+    deleteContainer
 }
