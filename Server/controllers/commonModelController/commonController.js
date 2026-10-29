@@ -150,11 +150,13 @@ const importSystemOrdersFromExcel = async (req, res) => {
 
 // CREATE container
 
+
 const createContainer = async (req, res) => {
   try {
     const { name } = req.body;
 
-    if (!name || typeof name !== "string" || !name.trim()) {
+    // Validate container name
+    if (typeof name !== "string" || !name.trim()) {
       return res.status(400).json({
         success: false,
         message: "Container name is required",
@@ -163,13 +165,10 @@ const createContainer = async (req, res) => {
 
     const containerName = name.trim();
 
-    // Check for duplicate name (case-insensitive)
+    // Check for an existing container with the same name
     const existingContainer = await prisma.container_list.findFirst({
       where: {
-        name: {
-          equals: containerName,
-          mode: "insensitive",
-        },
+        name: containerName,
       },
     });
 
@@ -180,6 +179,7 @@ const createContainer = async (req, res) => {
       });
     }
 
+    // Create container
     const container = await prisma.container_list.create({
       data: {
         name: containerName,
@@ -200,6 +200,7 @@ const createContainer = async (req, res) => {
     });
   }
 };
+
 
 
 // GET all containers
