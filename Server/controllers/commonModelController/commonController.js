@@ -149,6 +149,7 @@ const importSystemOrdersFromExcel = async (req, res) => {
 
 
 // CREATE container
+
 const createContainer = async (req, res) => {
   try {
     const { name } = req.body;
@@ -160,9 +161,28 @@ const createContainer = async (req, res) => {
       });
     }
 
+    const containerName = name.trim();
+
+    // Check for duplicate name (case-insensitive)
+    const existingContainer = await prisma.container_list.findFirst({
+      where: {
+        name: {
+          equals: containerName,
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (existingContainer) {
+      return res.status(409).json({
+        success: false,
+        message: "Container name already exists",
+      });
+    }
+
     const container = await prisma.container_list.create({
       data: {
-        name: name.trim(),
+        name: containerName,
       },
     });
 
@@ -180,6 +200,7 @@ const createContainer = async (req, res) => {
     });
   }
 };
+
 
 // GET all containers
 const getAllContainers = async (req, res) => {
