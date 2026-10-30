@@ -12,7 +12,17 @@ const getPumpHead = (itemName = "") => {
   const heads = ["30M", "50M", "70M", "100M"];
   return heads.find((h) => itemName.includes(h)) || null;
 };
-
+const mergeContainerStock = (existing, incoming) => {
+  const result =
+    existing && typeof existing === "object" && !Array.isArray(existing)
+      ? { ...existing }
+      : {};
+ 
+  for (const [container, qty] of Object.entries(incoming || {})) {
+    result[container] = Number(result[container] || 0) + Number(qty);
+  }
+  return result;
+};
 const getLineWorkerList = async (req, res) => {
   try {
     const empId = req.user?.id;
@@ -40,7 +50,6 @@ const getLineWorkerList = async (req, res) => {
           "Only Store Keeper & Production Have Access To The Line-Workers",
       });
     }
-
 
     // const userData = await prisma.user.findMany({
     //   where: {
@@ -77,26 +86,26 @@ const getLineWorkerList = async (req, res) => {
     //   },
     // });
     const userData = await prisma.user.findMany({
-  where: {
-    warehouseId: userWarehouseId,
-    isActive: true,
-  },
-  orderBy: {
-    name: "asc",
-  },
-  select: {
-    id: true,
-    name: true,
-    warehouseId: true,
-    isActive: true,
-    role: {
+      where: {
+        warehouseId: userWarehouseId,
+        isActive: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
       select: {
         id: true,
         name: true,
+        warehouseId: true,
+        isActive: true,
+        role: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
-    },
-  },
-});
+    });
 
     return res.status(200).json({
       success: true,
@@ -206,13 +215,10 @@ const getWarehouseRawMaterialList = async (req, res) => {
       });
     }
 
-
-
     // -------------------------------------------
     const inventoryItems = await InstallationInventory.find({ warehouseId })
       .populate("systemItemId", "itemName unit isUsed")
       .lean();
-
 
     let totalDesired = 0;
 
@@ -235,7 +241,6 @@ const getWarehouseRawMaterialList = async (req, res) => {
       inventoryMap.set(key, (inventoryMap.get(key) || 0) + item.quantity);
     });
 
-
     /* =====================================================
        STEP 5: COMMON ITEMS
     ===================================================== */
@@ -248,22 +253,20 @@ const getWarehouseRawMaterialList = async (req, res) => {
         name: item.systemItemId.itemName,
         stock: stockQty,
         unit: item.systemItemId.unit,
-        isUsed: item.systemItemId.isUsed
+        isUsed: item.systemItemId.isUsed,
       };
     });
 
-    const installationData = commonItemsResponse.map(item => {
-
+    const installationData = commonItemsResponse.map((item) => {
       return {
         id: item.id,
         name: item.name,
         stock: item.stock,
         unit: item?.unit,
         isUsed: item?.isUsed,
-        type: "INSTALLATION"
+        type: "INSTALLATION",
       };
     });
-
 
     // console.log(commonItemsResponse)
     // -------------------------------------------
@@ -282,7 +285,6 @@ const getWarehouseRawMaterialList = async (req, res) => {
         },
       },
     });
-
 
     // 2. Format the data to match your previous response structure
     const formattedData = warehouseData.map((item) => {
@@ -312,13 +314,12 @@ const getWarehouseRawMaterialList = async (req, res) => {
 
     const cleanedData = sortedData.map(({ rawStock, ...rest }) => ({
       ...rest,
-      type: "RAW_MATERIAL"
+      type: "RAW_MATERIAL",
     }));
 
-    const data = [
-      ...cleanedData,
-      ...installationData
-    ].sort((a, b) => a.name.localeCompare(b.name));
+    const data = [...cleanedData, ...installationData].sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
 
     return res.status(200).json({
       success: true,
@@ -1412,8 +1413,9 @@ const markRawMaterialUsedOrNotUsed = async (req, res) => {
     if (warehouseStock.isUsed === isUsedBoolean) {
       return res.status(400).json({
         success: false,
-        message: `RawMaterial is already marked as ${isUsedBoolean ? "Used" : "Not Used"
-          }`,
+        message: `RawMaterial is already marked as ${
+          isUsedBoolean ? "Used" : "Not Used"
+        }`,
       });
     }
 
@@ -1608,6 +1610,388 @@ const getPendingPOsForReceiving = async (req, res) => {
   }
 };
 
+// ============ Dikshant ============ //
+// const purchaseOrderReceivingBill = async (req, res) => {
+//   const userId = req.user?.id;
+//   const warehouseId = String(req.user?.warehouseId);
+//   let uploadedFilePath = null;
+
+//   const deleteUploadedFile = async () => {
+//     if (uploadedFilePath) {
+//       try {
+//         await fs.unlink(uploadedFilePath);
+//       } catch (err) {
+//         console.error("⚠️ Failed to delete uploaded file:", err);
+//       }
+//     }
+//   };
+
+//   const validateItems = async (items, po) => {
+//     for (const item of items) {
+//       console.log(item);
+//       const { itemId, itemSource, purchaseOrderItemId } = item;
+
+//       if (!itemId || !itemSource || !purchaseOrderItemId) {
+//         throw new Error("Invalid item data.");
+//       }
+//       console.log(purchaseOrderItemId, itemId, itemSource);
+//       const poItem = po.items.find((p) => p.id === purchaseOrderItemId);
+//       if (!poItem) {
+//         throw new Error(`PO item not found.`);
+//       }
+
+//       if (itemSource === "mongo") {
+//         const systemItem = await SystemItem.findById(itemId);
+//         if (!systemItem) throw new Error(`SystemItem not found.`);
+//       } else if (itemSource === "mysql") {
+//         const rawMat = await prisma.rawMaterial.findUnique({
+//           where: { id: itemId },
+//         });
+//         if (!rawMat) throw new Error(`RawMaterial not found.`);
+//       } else {
+//         throw new Error(`Invalid itemSource.`);
+//       }
+//     }
+//   };
+
+//   try {
+//     // ================= PARSE ITEMS =================
+//     if (req.body.items) {
+//       try {
+//         req.body.items = JSON.parse(req.body.items);
+//       } catch {
+//         return res
+//           .status(400)
+//           .json({ success: false, message: "Invalid items JSON." });
+//       }
+//     }
+
+//     const { purchaseOrderId, items, invoiceNumber, vehicleNumber } = req.body;
+//     const billFile = req.files?.billFile?.[0];
+
+//     if (!billFile)
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "Bill file is required." });
+//     uploadedFilePath = path.join(
+//       __dirname,
+//       "../../uploads/purchaseOrder/receivingBill",
+//       billFile.filename,
+//     );
+
+//     if (
+//       !purchaseOrderId ||
+//       !invoiceNumber ||
+//       !Array.isArray(items) ||
+//       !items.length
+//     ) {
+//       await deleteUploadedFile();
+//       return res.status(400).json({
+//         success: false,
+//         message: "purchaseOrderId, invoiceNumber and items are required.",
+//       });
+//     }
+
+//     // ================= FETCH PO =================
+//     const po = await prisma.purchaseOrder.findUnique({
+//       where: { id: purchaseOrderId },
+//       include: { items: true },
+//     });
+
+//     if (!po) throw new Error("Purchase Order not found.");
+
+//     if (po.warehouseName === "Bhiwani" || po.warehouseName === 'Malanpur Warehouse') {
+//       if (!vehicleNumber) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "vehicleNo is required for Bhiwani warehouse"
+//         });
+//       }
+//     }
+
+//     // if (po.approvalStatus !== "Approved") {
+//     //   throw new Error("Cannot receive items as PO not approved by admin.")
+//     // }
+
+//     // if (po.approvalStatus === 'Rejected') {
+//     //   throw new Error("Cannot receive items as PO is rejected by admin");
+//     // }
+
+//     if (["Cancelled", "Received"].includes(po.status))
+//       throw new Error(`PO already ${po.status}.`);
+
+//     if (String(po.warehouseId) !== warehouseId)
+//       return res
+//         .status(403)
+//         .json({ success: false, message: "Unauthorized warehouse access." });
+
+//     await validateItems(items, po);
+//     // ================= PRISMA + MONGO ATOMIC =================
+//     const { receiptResults, stockUpdates } = await prisma.$transaction(
+//       async (tx) => {
+//         const receiptResults = [];
+//         const stockUpdates = [];
+//         const mongoRollbackStack = [];
+
+//         // Save bill
+//         await tx.purchaseOrderBill.create({
+//           data: {
+//             purchaseOrderId,
+//             invoiceNumber,
+//             vehicleNumber: vehicleNumber || null,
+//             fileName: billFile.filename,
+//             fileUrl: `/uploads/purchaseOrder/receivingBill/${billFile.filename}`,
+//             mimeType: billFile.mimetype,
+//             uploadedBy: userId,
+//           },
+//         });
+
+//         for (const item of items) {
+//           const {
+//             purchaseOrderItemId,
+//             itemId,
+//             itemSource,
+//             itemName,
+//             goodQty = 0,
+//             damagedQty = 0,
+//             remarks = "",
+//           } = item;
+//           const poItem = po.items.find((p) => p.id === purchaseOrderItemId);
+//           if (!poItem) throw new Error(`PO item ${itemName} not found.`);
+
+//           const orderedQty = Number(poItem.quantity || 0);
+//           const alreadyReceived = Number(poItem.receivedQty || 0);
+//           const poUnit = poItem.unit?.toLowerCase();
+
+//           if (alreadyReceived + goodQty > orderedQty)
+//             throw new Error(`Over receiving ${itemName}`);
+//           const totalReceived = alreadyReceived + goodQty;
+
+//           // Receipt entry
+//           await tx.purchaseOrderReceipt.create({
+//             data: {
+//               purchaseOrderId,
+//               purchaseOrderItemId,
+//               invoiceNumber,
+//               vehicleNumber: vehicleNumber || null,
+//               itemId,
+//               itemSource,
+//               itemName,
+//               receivedQty: goodQty + damagedQty,
+//               goodQty,
+//               damagedQty,
+//               remarks,
+//               createdBy: userId,
+//               receivedDate: new Date(),
+//             },
+//           });
+
+//           // Update PO Item receivedQty
+//           await tx.purchaseOrderItem.update({
+//             where: { id: purchaseOrderItemId },
+//             data: { receivedQty: totalReceived },
+//           });
+
+//           // Damaged stock
+//           if (damagedQty > 0) {
+//             await tx.damagedStock.create({
+//               data: {
+//                 purchaseOrderId,
+//                 invoiceNumber,
+//                 itemId,
+//                 itemSource,
+//                 itemName,
+//                 unit: poItem.unit,
+//                 quantity: damagedQty,
+//                 status: "Pending",
+//                 remarks,
+//                 createdBy: userId,
+//               },
+//             });
+//           }
+
+//           // Stock updates
+//           if (goodQty > 0)
+//             stockUpdates.push({
+//               itemSource,
+//               itemId,
+//               goodQty,
+//               poUnit,
+//               warehouseId,
+//             });
+//           receiptResults.push({
+//             itemId,
+//             itemName,
+//             goodQty,
+//             damagedQty,
+//             remainingQty: orderedQty - totalReceived,
+//           });
+//         }
+
+//         // PO status update
+//         const updatedItems = await tx.purchaseOrderItem.findMany({
+//           where: { purchaseOrderId },
+//           select: { quantity: true, receivedQty: true },
+//         });
+//         const allReceived = updatedItems.every(
+//           (i) => Number(i.receivedQty || 0) >= Number(i.quantity || 0),
+//         );
+//         const anyReceived = updatedItems.some(
+//           (i) => Number(i.receivedQty || 0) > 0,
+//         );
+
+//         let newStatus = po.status;
+//         if (allReceived) newStatus = "Received";
+//         else if (anyReceived) newStatus = "PartiallyReceived";
+
+//         if (newStatus !== po.status)
+//           await tx.purchaseOrder.update({
+//             where: { id: purchaseOrderId },
+//             data: { status: newStatus },
+//           });
+
+//         // MySQL stock update
+//         for (const s of stockUpdates.filter((s) => s.itemSource === "mysql")) {
+//           const rawMat = await tx.rawMaterial.findUnique({
+//             where: { id: s.itemId },
+//           });
+//           if (!rawMat)
+//             throw new Error(`Raw material not found for ${s.itemName}`);
+
+//           const baseUnit = rawMat.unit?.toLowerCase();
+//           const convUnit = rawMat.conversionUnit?.toLowerCase();
+//           const factor = Number(rawMat.conversionFactor || 1);
+
+//           let convertedQty = s.goodQty;
+//           if (baseUnit && s.poUnit !== baseUnit) {
+//             if (convUnit && s.poUnit === convUnit)
+//               convertedQty = s.goodQty / factor;
+//             else
+//               throw new Error(`Invalid unit for raw material ${rawMat.name}`);
+//           }
+
+//           await tx.warehouseStock.upsert({
+//             where: {
+//               warehouseId_rawMaterialId: {
+//                 warehouseId: s.warehouseId,
+//                 rawMaterialId: s.itemId,
+//               },
+//             },
+//             update: { quantity: { increment: convertedQty } },
+//             create: {
+//               warehouseId: s.warehouseId,
+//               rawMaterialId: s.itemId,
+//               quantity: convertedQty,
+//               unit: baseUnit,
+//             },
+//           });
+//         }
+
+//         // ================= MONGO STOCK =================
+//         try {
+//           for (const s of stockUpdates.filter(
+//             (s) => s.itemSource === "mongo",
+//           )) {
+//             const systemItem = await SystemItem.findById(s.itemId);
+//             if (!systemItem)
+//               throw new Error(`System item ${s.itemName} not found`);
+//             console.log(systemItem);
+//             const baseUnit = systemItem.unit?.toLowerCase().trim();
+//             console.log("System Item Unit: ", baseUnit);
+//             const convUnit = (
+//               systemItem.conversionUnit ??
+//               systemItem.converionUnit ??
+//               ""
+//             )
+//               ?.toLowerCase()
+//               .trim();
+//             console.log("System Item Con Unit: ", convUnit);
+//             const factor = Number(systemItem.conversionFactor || 1);
+//             console.log("System Item Conv Factor: ", factor);
+
+//             console.log({
+//               poUnit: s.poUnit?.toLowerCase().trim(),
+//               baseUnit,
+//               convUnit,
+//             });
+//             let convertedQty = s.goodQty;
+//             if (baseUnit && s.poUnit !== baseUnit) {
+//               if (convUnit && s.poUnit === convUnit)
+//                 convertedQty = s.goodQty / factor;
+//               else
+//                 throw new Error(
+//                   `Invalid unit for system item ${systemItem.itemName}`,
+//                 );
+//             }
+
+//             const inv = await InstallationInventory.findOne({
+//               warehouseId: s.warehouseId,
+//               systemItemId: s.itemId,
+//             });
+//             if (inv) {
+//               mongoRollbackStack.push({
+//                 type: "update",
+//                 id: inv._id,
+//                 oldQty: inv.quantity,
+//               });
+//               console.log("Previous", inv);
+//               inv.quantity += convertedQty;
+//               inv.updatedAt = new Date();
+//               inv.updatedByEmpId = req.user?.id;
+//               await inv.save();
+//               console.log("After", inv);
+//             } else {
+//               const created = await InstallationInventory.create({
+//                 warehouseId: s.warehouseId,
+//                 systemItemId: s.itemId,
+//                 quantity: convertedQty,
+//               });
+//               mongoRollbackStack.push({ type: "create", id: created._id });
+//             }
+//           }
+//         } catch (mongoErr) {
+//           // Rollback Mongo + throw to rollback MySQL via transaction
+//           for (const r of mongoRollbackStack.reverse()) {
+//             if (r.type === "update")
+//               await InstallationInventory.findByIdAndUpdate(r.id, {
+//                 quantity: r.oldQty,
+//               });
+//             if (r.type === "create")
+//               await InstallationInventory.findByIdAndDelete(r.id);
+//           }
+//           throw mongoErr;
+//         }
+
+//         // Audit log
+//         await tx.auditLog.create({
+//           data: {
+//             entityType: "PurchaseOrder",
+//             entityId: purchaseOrderId,
+//             action: "RECEIVE_PO",
+//             performedBy: userId,
+//             oldValue: po,
+//             newValue: { receiptResults },
+//           },
+//         });
+
+//         return { receiptResults, stockUpdates };
+//       },
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Purchase Order received successfully.",
+//       data: receiptResults,
+//     });
+//   } catch (err) {
+//     console.error("❌ PO Receiving Error:", err);
+//     await deleteUploadedFile();
+//     return res
+//       .status(500)
+//       .json({ success: false, message: err.message || "PO receiving failed." });
+//   }
+// };
+// ============ Shiv ============== //
 const purchaseOrderReceivingBill = async (req, res) => {
   const userId = req.user?.id;
   const warehouseId = String(req.user?.warehouseId);
@@ -1625,16 +2009,42 @@ const purchaseOrderReceivingBill = async (req, res) => {
 
   const validateItems = async (items, po) => {
     for (const item of items) {
-      console.log(item);
       const { itemId, itemSource, purchaseOrderItemId } = item;
 
       if (!itemId || !itemSource || !purchaseOrderItemId) {
         throw new Error("Invalid item data.");
       }
-      console.log(purchaseOrderItemId, itemId, itemSource);
+
       const poItem = po.items.find((p) => p.id === purchaseOrderItemId);
       if (!poItem) {
         throw new Error(`PO item not found.`);
+      }
+
+      // ---- Container stock validation ----
+      const goodQty = Number(item.goodQty || 0);
+      if (goodQty > 0) {
+        const stock = item.stock;
+
+        if (!stock || typeof stock !== "object" || Array.isArray(stock)) {
+          throw new Error(`Container stock is required for ${item.itemName}.`);
+        }
+
+        let total = 0;
+        for (const [container, qty] of Object.entries(stock)) {
+          const n = Number(qty);
+          if (!container.trim() || !Number.isFinite(n) || n <= 0) {
+            throw new Error(
+              `Invalid container quantity for ${item.itemName} (${container}).`,
+            );
+          }
+          total += n;
+        }
+
+        if (Math.abs(total - goodQty) > 0.0001) {
+          throw new Error(
+            `Container stock total (${total}) must equal goodQty (${goodQty}) for ${item.itemName}.`,
+          );
+        }
       }
 
       if (itemSource === "mongo") {
@@ -1670,6 +2080,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Bill file is required." });
+
     uploadedFilePath = path.join(
       __dirname,
       "../../uploads/purchaseOrder/receivingBill",
@@ -1697,11 +2108,15 @@ const purchaseOrderReceivingBill = async (req, res) => {
 
     if (!po) throw new Error("Purchase Order not found.");
 
-    if (po.warehouseName === "Bhiwani" || po.warehouseName === 'Malanpur Warehouse') {
+    if (
+      po.warehouseName === "Bhiwani" ||
+      po.warehouseName === "Malanpur Warehouse"
+    ) {
       if (!vehicleNumber) {
+        await deleteUploadedFile();
         return res.status(400).json({
           success: false,
-          message: "vehicleNo is required for Bhiwani warehouse"
+          message: "vehicleNo is required for Bhiwani warehouse",
         });
       }
     }
@@ -1717,12 +2132,15 @@ const purchaseOrderReceivingBill = async (req, res) => {
     if (["Cancelled", "Received"].includes(po.status))
       throw new Error(`PO already ${po.status}.`);
 
-    if (String(po.warehouseId) !== warehouseId)
+    if (String(po.warehouseId) !== warehouseId) {
+      await deleteUploadedFile();
       return res
         .status(403)
         .json({ success: false, message: "Unauthorized warehouse access." });
+    }
 
     await validateItems(items, po);
+
     // ================= PRISMA + MONGO ATOMIC =================
     const { receiptResults, stockUpdates } = await prisma.$transaction(
       async (tx) => {
@@ -1752,7 +2170,9 @@ const purchaseOrderReceivingBill = async (req, res) => {
             goodQty = 0,
             damagedQty = 0,
             remarks = "",
+            stock = {}, // container-wise stock: { container001: "50", ... }
           } = item;
+
           const poItem = po.items.find((p) => p.id === purchaseOrderItemId);
           if (!poItem) throw new Error(`PO item ${itemName} not found.`);
 
@@ -1789,6 +2209,33 @@ const purchaseOrderReceivingBill = async (req, res) => {
             data: { receivedQty: totalReceived },
           });
 
+          // Container-wise history (update if item exists, else insert)
+          if (goodQty > 0 && stock && Object.keys(stock).length) {
+            const existingHistory =
+              await tx.item_container_wise_history.findFirst({
+                where: { item_id: itemId },
+              });
+
+            if (existingHistory) {
+              await tx.item_container_wise_history.update({
+                where: { id: existingHistory.id },
+                data: {
+                  stock_with_container: mergeContainerStock(
+                    existingHistory.stock_with_container,
+                    stock,
+                  ),
+                },
+              });
+            } else {
+              await tx.item_container_wise_history.create({
+                data: {
+                  item_id: itemId,
+                  stock_with_container: mergeContainerStock({}, stock),
+                },
+              });
+            }
+          }
+
           // Damaged stock
           if (damagedQty > 0) {
             await tx.damagedStock.create({
@@ -1812,10 +2259,12 @@ const purchaseOrderReceivingBill = async (req, res) => {
             stockUpdates.push({
               itemSource,
               itemId,
+              itemName,
               goodQty,
               poUnit,
               warehouseId,
             });
+
           receiptResults.push({
             itemId,
             itemName,
@@ -1892,9 +2341,8 @@ const purchaseOrderReceivingBill = async (req, res) => {
             const systemItem = await SystemItem.findById(s.itemId);
             if (!systemItem)
               throw new Error(`System item ${s.itemName} not found`);
-            console.log(systemItem);
+
             const baseUnit = systemItem.unit?.toLowerCase().trim();
-            console.log("System Item Unit: ", baseUnit);
             const convUnit = (
               systemItem.conversionUnit ??
               systemItem.converionUnit ??
@@ -1902,15 +2350,8 @@ const purchaseOrderReceivingBill = async (req, res) => {
             )
               ?.toLowerCase()
               .trim();
-            console.log("System Item Con Unit: ", convUnit);
             const factor = Number(systemItem.conversionFactor || 1);
-            console.log("System Item Conv Factor: ", factor);
 
-            console.log({
-              poUnit: s.poUnit?.toLowerCase().trim(),
-              baseUnit,
-              convUnit,
-            });
             let convertedQty = s.goodQty;
             if (baseUnit && s.poUnit !== baseUnit) {
               if (convUnit && s.poUnit === convUnit)
@@ -1931,12 +2372,10 @@ const purchaseOrderReceivingBill = async (req, res) => {
                 id: inv._id,
                 oldQty: inv.quantity,
               });
-              console.log("Previous", inv);
               inv.quantity += convertedQty;
               inv.updatedAt = new Date();
               inv.updatedByEmpId = req.user?.id;
               await inv.save();
-              console.log("After", inv);
             } else {
               const created = await InstallationInventory.create({
                 warehouseId: s.warehouseId,
@@ -1988,7 +2427,6 @@ const purchaseOrderReceivingBill = async (req, res) => {
       .json({ success: false, message: err.message || "PO receiving failed." });
   }
 };
-
 const purchaseOrderReceivingBill2 = async (req, res) => {
   const userId = req.user?.id;
   const warehouseId = String(req.user?.warehouseId);
@@ -2066,7 +2504,8 @@ const purchaseOrderReceivingBill2 = async (req, res) => {
       await deleteUploadedFile();
       return res.status(400).json({
         success: false,
-        message: "purchaseOrderId, invoiceNumber, vehicleNumber & items are required.",
+        message:
+          "purchaseOrderId, invoiceNumber, vehicleNumber & items are required.",
       });
     }
 
@@ -2562,10 +3001,10 @@ const newDirectItemIssue = async (req, res) => {
       serviceProcessId,
       issuedToName,
       department,
-      proof_images
+      proof_images,
     } = req.body;
     /*  -------------- check proof images ---------------*/
-    if(!proof_images){
+    if (!proof_images) {
       return res.status(400).json({
         success: false,
         message: "Proof Image is required",
@@ -2650,35 +3089,39 @@ const newDirectItemIssue = async (req, res) => {
 
     rawMaterialIssued.forEach((item) => {
       if (mongoose.Types.ObjectId.isValid(item.rawMaterialId)) {
-        mongoRawMaterial.push(item.rawMaterialId)
-      }
-      else {
+        mongoRawMaterial.push(item.rawMaterialId);
+      } else {
         mySqlRawMaterial.push(item.rawMaterialId);
       }
-    })
+    });
 
+    if (mySqlRawMaterial.length === 0 && mongoRawMaterial.length === 0)
+      return res
+        .status(400)
+        .json({ success: false, message: "Raw Material not provided." });
 
-    if (mySqlRawMaterial.length === 0 && mongoRawMaterial.length === 0) return res.status(400).json({ success: false, message: "Raw Material not provided." });
-
-    let mongoUpdates = []
+    let mongoUpdates = [];
     let result = await prisma.$transaction(async (tx) => {
-
       for (let [rawMaterialId, quantity] of materialMap.entries()) {
-
         if (mongoRawMaterial.includes(rawMaterialId)) {
           const system = await SystemItem.findOne({ _id: rawMaterialId });
 
-          if (!system) throw new Error(`Raw Material Not found for ${rawMaterialId}`);
+          if (!system)
+            throw new Error(`Raw Material Not found for ${rawMaterialId}`);
 
           let inventory = await InstallationInventory.findOne({
             warehouseId: userWarehouseId,
-            systemItemId: rawMaterialId
-          })
-          if (!inventory) throw new Error(`Inventory Not found for ${rawMaterialId}`)
+            systemItemId: rawMaterialId,
+          });
+          if (!inventory)
+            throw new Error(`Inventory Not found for ${rawMaterialId}`);
 
-          if (inventory.quantity < quantity) throw new Error(`Insufficient inventory stock for ${rawMaterialId}.`)
+          if (inventory.quantity < quantity)
+            throw new Error(
+              `Insufficient inventory stock for ${rawMaterialId}.`,
+            );
 
-          mongoUpdates.push({ rawMaterialId, quantity })
+          mongoUpdates.push({ rawMaterialId, quantity });
         }
 
         if (mySqlRawMaterial.includes(rawMaterialId)) {
@@ -2734,9 +3177,7 @@ const newDirectItemIssue = async (req, res) => {
               unit: warehouseStock.unit,
             },
           });
-
         }
-
       }
       return await tx.directItemIssue.create({
         data: {
@@ -2749,10 +3190,10 @@ const newDirectItemIssue = async (req, res) => {
           issuedToName: issuedToName || issuedToUser.name || null,
           department: department || issuedToUser.role?.name || null,
           remarks,
-          proof_images
+          proof_images,
         },
       });
-    })
+    });
 
     for (const item of mongoUpdates) {
       await InstallationInventory.updateOne(
@@ -2764,11 +3205,9 @@ const newDirectItemIssue = async (req, res) => {
           $inc: {
             quantity: -item.quantity,
           },
-        }
+        },
       );
     }
-
-
 
     return res.status(200).json({
       success: true,
@@ -2782,7 +3221,7 @@ const newDirectItemIssue = async (req, res) => {
       error: error.message,
     });
   }
-}
+};
 
 // ---------------------------------
 
@@ -2829,9 +3268,9 @@ const getDirectItemIssueHistory = async (req, res) => {
     // Fetch rawMaterial names
     const rawMaterials = rawMaterialIds.length
       ? await prisma.rawMaterial.findMany({
-        where: { id: { in: rawMaterialIds } },
-        select: { id: true, name: true },
-      })
+          where: { id: { in: rawMaterialIds } },
+          select: { id: true, name: true },
+        })
       : [];
 
     const rawMaterialMap = {};
@@ -2852,11 +3291,11 @@ const getDirectItemIssueHistory = async (req, res) => {
       proof_images: issue?.proof_images,
       rawMaterialIssued: Array.isArray(issue.rawMaterialIssued)
         ? issue.rawMaterialIssued.map((item) => ({
-          rawMaterialId: item.rawMaterialId,
-          rawMaterialName: rawMaterialMap[item.rawMaterialId] || null,
-          quantity: item.quantity,
-          unit: item.unit
-        }))
+            rawMaterialId: item.rawMaterialId,
+            rawMaterialName: rawMaterialMap[item.rawMaterialId] || null,
+            quantity: item.quantity,
+            unit: item.unit,
+          }))
         : [],
       issuedAt: issue.issuedAt,
       remarks: issue.remarks,
@@ -3556,9 +3995,15 @@ const getRawMaterialList3 = async (req, res) => {
     });
 
     // Separate ids by type
-    const rawIds = warehouseStocks.filter(i => i.itemType === "RAW").map(i => i.itemId);
-    const infraIds = warehouseStocks.filter(i => i.itemType === "INFRA").map(i => i.itemId);
-    const toolIds = warehouseStocks.filter(i => i.itemType === "TOOL").map(i => i.itemId);
+    const rawIds = warehouseStocks
+      .filter((i) => i.itemType === "RAW")
+      .map((i) => i.itemId);
+    const infraIds = warehouseStocks
+      .filter((i) => i.itemType === "INFRA")
+      .map((i) => i.itemId);
+    const toolIds = warehouseStocks
+      .filter((i) => i.itemType === "TOOL")
+      .map((i) => i.itemId);
 
     const [rawMaterials, infraMaterials, tools] = await Promise.all([
       prisma.rawMaterial.findMany({
@@ -3581,7 +4026,7 @@ const getRawMaterialList3 = async (req, res) => {
     }
 
     const formatItems = (items, type) =>
-      items.map(item => {
+      items.map((item) => {
         const stockData = stockMap[item.id] || {};
         const qty = stockData.quantity ?? 0;
         const isUsed = stockData.isUsed ?? false;
@@ -3612,19 +4057,19 @@ const getRawMaterialList3 = async (req, res) => {
       warehouseId: warehouseId,
     }).lean();
 
-    const installationIds = installationStocks.map(i => i.itemId);
+    const installationIds = installationStocks.map((i) => i.itemId);
 
     const installationItems = await SystemItem.find(
       { _id: { $in: installationIds } },
-      { itemName: 1 }
+      { itemName: 1 },
     ).lean();
 
     const installationMap = {};
-    installationItems.forEach(i => {
+    installationItems.forEach((i) => {
       installationMap[i._id.toString()] = i.itemName;
     });
 
-    const formattedInstallation = installationStocks.map(stock => {
+    const formattedInstallation = installationStocks.map((stock) => {
       const qty = stock.quantity ?? 0;
 
       return {
@@ -3653,7 +4098,6 @@ const getRawMaterialList3 = async (req, res) => {
       message: "Inventory fetched successfully",
       data: allItems,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -3683,7 +4127,6 @@ const getWarehouseRawMaterialList3 = async (req, res) => {
       });
     }
 
-
     const warehouseData = await prisma.warehouseStock.findMany({
       where: { warehouseId },
       select: {
@@ -3696,9 +4139,15 @@ const getWarehouseRawMaterialList3 = async (req, res) => {
     });
 
     // separate ids by type
-    const rawIds = warehouseData.filter(i => i.itemType === "RAW").map(i => i.itemId);
-    const infraIds = warehouseData.filter(i => i.itemType === "INFRA").map(i => i.itemId);
-    const toolIds = warehouseData.filter(i => i.itemType === "TOOL").map(i => i.itemId);
+    const rawIds = warehouseData
+      .filter((i) => i.itemType === "RAW")
+      .map((i) => i.itemId);
+    const infraIds = warehouseData
+      .filter((i) => i.itemType === "INFRA")
+      .map((i) => i.itemId);
+    const toolIds = warehouseData
+      .filter((i) => i.itemType === "TOOL")
+      .map((i) => i.itemId);
 
     const [rawMaterials, infraMaterials, tools] = await Promise.all([
       prisma.rawMaterial.findMany({
@@ -3717,11 +4166,11 @@ const getWarehouseRawMaterialList3 = async (req, res) => {
 
     const itemMap = {};
 
-    rawMaterials.forEach(i => itemMap[i.id] = { ...i, type: "RAW" });
-    infraMaterials.forEach(i => itemMap[i.id] = { ...i, type: "INFRA" });
-    tools.forEach(i => itemMap[i.id] = { ...i, type: "TOOL" });
+    rawMaterials.forEach((i) => (itemMap[i.id] = { ...i, type: "RAW" }));
+    infraMaterials.forEach((i) => (itemMap[i.id] = { ...i, type: "INFRA" }));
+    tools.forEach((i) => (itemMap[i.id] = { ...i, type: "TOOL" }));
 
-    let formattedData = warehouseData.map(stock => {
+    let formattedData = warehouseData.map((stock) => {
       const itemId = stock.itemId;
       const item = itemMap[itemId] || {};
 
@@ -3748,19 +4197,19 @@ const getWarehouseRawMaterialList3 = async (req, res) => {
       warehouseId: warehouseId,
     }).lean();
 
-    const installationIds = installationStocks.map(i => i.itemId);
+    const installationIds = installationStocks.map((i) => i.itemId);
 
     const installationItems = await SystemItem.find(
       { _id: { $in: installationIds } },
-      { itemName: 1 }
+      { itemName: 1 },
     ).lean();
 
     const installationMap = {};
-    installationItems.forEach(i => {
+    installationItems.forEach((i) => {
       installationMap[i._id.toString()] = i.itemName;
     });
 
-    const formattedInstallation = installationStocks.map(stock => {
+    const formattedInstallation = installationStocks.map((stock) => {
       const qty = stock.quantity ?? 0;
 
       return {
@@ -3793,7 +4242,6 @@ const getWarehouseRawMaterialList3 = async (req, res) => {
       message: `${warehouse.warehouseName} inventory fetched successfully`,
       data: cleanedData,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -3859,30 +4307,33 @@ const showIncomingItemRequest3 = async (req, res) => {
           if (m.installationItemId) installationIds.push(m.installationItemId);
         }
 
-        const [rawMaterials, infraMaterials, tools, installationItems] = await Promise.all([
-          prisma.rawMaterial.findMany({
-            where: { id: { in: rawIds } },
-            select: { id: true, name: true, unit: true },
-          }),
-          prisma.infraMaterial.findMany({
-            where: { id: { in: infraIds } },
-            select: { id: true, name: true, unit: true },
-          }),
-          prisma.tools_Equipments.findMany({
-            where: { id: { in: toolIds } },
-            select: { id: true, name: true, unit: true },
-          }),
-          SystemItem.find(
-            { _id: { $in: installationIds } },
-            { itemName: 1, unit: 1 }
-          ).lean(),
-        ]);
+        const [rawMaterials, infraMaterials, tools, installationItems] =
+          await Promise.all([
+            prisma.rawMaterial.findMany({
+              where: { id: { in: rawIds } },
+              select: { id: true, name: true, unit: true },
+            }),
+            prisma.infraMaterial.findMany({
+              where: { id: { in: infraIds } },
+              select: { id: true, name: true, unit: true },
+            }),
+            prisma.tools_Equipments.findMany({
+              where: { id: { in: toolIds } },
+              select: { id: true, name: true, unit: true },
+            }),
+            SystemItem.find(
+              { _id: { $in: installationIds } },
+              { itemName: 1, unit: 1 },
+            ).lean(),
+          ]);
 
-        const rawMap = Object.fromEntries(rawMaterials.map(i => [i.id, i]));
-        const infraMap = Object.fromEntries(infraMaterials.map(i => [i.id, i]));
-        const toolMap = Object.fromEntries(tools.map(i => [i.id, i]));
+        const rawMap = Object.fromEntries(rawMaterials.map((i) => [i.id, i]));
+        const infraMap = Object.fromEntries(
+          infraMaterials.map((i) => [i.id, i]),
+        );
+        const toolMap = Object.fromEntries(tools.map((i) => [i.id, i]));
         const installationMap = Object.fromEntries(
-          installationItems.map(i => [i._id.toString(), i])
+          installationItems.map((i) => [i._id.toString(), i]),
         );
 
         const enriched = materials.map((m) => {
@@ -3892,16 +4343,16 @@ const showIncomingItemRequest3 = async (req, res) => {
           if (m.rawMaterialId && rawMap[m.rawMaterialId]) {
             item = rawMap[m.rawMaterialId];
             type = "RAW";
-          }
-          else if (m.infraItemId && infraMap[m.infraItemId]) {
+          } else if (m.infraItemId && infraMap[m.infraItemId]) {
             item = infraMap[m.infraItemId];
             type = "INFRA";
-          }
-          else if (m.toolsEquipmentId && toolMap[m.toolsEquipmentId]) {
+          } else if (m.toolsEquipmentId && toolMap[m.toolsEquipmentId]) {
             item = toolMap[m.toolsEquipmentId];
             type = "TOOL";
-          }
-          else if (m.installationItemId && installationMap[m.installationItemId]) {
+          } else if (
+            m.installationItemId &&
+            installationMap[m.installationItemId]
+          ) {
             item = installationMap[m.installationItemId];
             type = "INSTALLATION";
           }
@@ -3915,7 +4366,7 @@ const showIncomingItemRequest3 = async (req, res) => {
         });
 
         return { ...reqItem, materialRequested: enriched };
-      })
+      }),
     );
 
     res.json({
@@ -3923,7 +4374,6 @@ const showIncomingItemRequest3 = async (req, res) => {
       message: "Data fetched successfully",
       data: withNames,
     });
-
   } catch (error) {
     console.error("ERROR: ", error);
     return res.status(500).json({
@@ -3933,7 +4383,6 @@ const showIncomingItemRequest3 = async (req, res) => {
     });
   }
 };
-
 
 // {
 //   rawMaterialRequested: [
@@ -3950,19 +4399,26 @@ const sanctionItemForRequest3 = async (req, res) => {
     const warehouseId = req.user?.warehouseId;
 
     if (!itemRequestId)
-      return res.status(400).json({ success: false, message: "ItemRequestId Not Found" });
+      return res
+        .status(400)
+        .json({ success: false, message: "ItemRequestId Not Found" });
 
     if (!warehouseId)
-      return res.status(400).json({ success: false, message: "Warehouse not assigned to user" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Warehouse not assigned to user" });
 
     const itemRequestData = await prisma.itemRequestData.findFirst({
       where: { id: itemRequestId },
     });
 
     if (!itemRequestData) throw new Error("Item request not found");
-    if (itemRequestData.approved === null) throw new Error("Item request is not approved.");
-    if (itemRequestData.declined === true) throw new Error("Item request is declined.");
-    if (itemRequestData.materialGiven) throw new Error("Material already sanctioned");
+    if (itemRequestData.approved === null)
+      throw new Error("Item request is not approved.");
+    if (itemRequestData.declined === true)
+      throw new Error("Item request is declined.");
+    if (itemRequestData.materialGiven)
+      throw new Error("Material already sanctioned");
 
     const items = itemRequestData.rawMaterialRequested;
 
@@ -3995,19 +4451,16 @@ const sanctionItemForRequest3 = async (req, res) => {
        🔵 STEP 2 — MYSQL TRANSACTION (RAW + INFRA + TOOL)
     ===================================================== */
     await prisma.$transaction(async (tx) => {
-
       for (const item of items) {
         const type = item.type || "raw";
 
         /* ================= RAW ================= */
         if (type === "raw") {
-
           const rawMaterialData = await tx.rawMaterial.findFirst({
             where: { id: item.rawMaterialId || item.id },
           });
 
-          if (!rawMaterialData)
-            throw new Error(`Raw material not found`);
+          if (!rawMaterialData) throw new Error(`Raw material not found`);
 
           const warehouseStock = await tx.warehouseStock.findFirst({
             where: { warehouseId, rawMaterialId: rawMaterialData.id },
@@ -4039,17 +4492,14 @@ const sanctionItemForRequest3 = async (req, res) => {
               unit: item.unit,
             },
           });
-        }
+        } else if (type === "infra") {
 
         /* ================= INFRA ================= */
-        else if (type === "infra") {
-
           const stock = await tx.warehouseStock.findFirst({
             where: { warehouseId, infraMaterialId: item.id },
           });
 
-          if (!stock)
-            throw new Error(`Infra item not available in warehouse`);
+          if (!stock) throw new Error(`Infra item not available in warehouse`);
 
           if (Number(stock.quantity) < Number(item.quantity))
             throw new Error(`Insufficient Infra stock`);
@@ -4073,17 +4523,14 @@ const sanctionItemForRequest3 = async (req, res) => {
               quantity: Number(item.quantity),
             },
           });
-        }
+        } else if (type === "tool") {
 
         /* ================= TOOL ================= */
-        else if (type === "tool") {
-
           const stock = await tx.warehouseStock.findFirst({
             where: { warehouseId, toolId: item.id },
           });
 
-          if (!stock)
-            throw new Error(`Tool not available in warehouse`);
+          if (!stock) throw new Error(`Tool not available in warehouse`);
 
           if (Number(stock.quantity) < Number(item.quantity))
             throw new Error(`Insufficient Tool stock`);
@@ -4120,16 +4567,15 @@ const sanctionItemForRequest3 = async (req, res) => {
       const type = item.type || "raw";
 
       if (type === "installation") {
-
         await InstallationInventory.updateOne(
           { itemId: item.id, warehouseId },
-          { $inc: { quantity: -Number(item.quantity) } }
+          { $inc: { quantity: -Number(item.quantity) } },
         );
 
         await InstallationInventory.updateOne(
           { itemId: item.id, assignedTo: itemRequestData.requestedBy },
           { $inc: { quantity: Number(item.quantity) } },
-          { upsert: true }
+          { upsert: true },
         );
       }
     }
@@ -4151,7 +4597,6 @@ const sanctionItemForRequest3 = async (req, res) => {
       message: "Material sanctioned successfully",
       data: result,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -4595,7 +5040,6 @@ const updateStock3 = async (req, res) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-
       // ================= Create Batch =================
       const addBillPhoto = await tx.stockMovementBatch.create({
         data: {
@@ -4606,7 +5050,6 @@ const updateStock3 = async (req, res) => {
 
       // ================= Loop Items =================
       for (const item of parsedList) {
-
         // Backward compatibility
         const itemId = item.itemId;
         const itemType = item.itemType; // default raw
@@ -4614,7 +5057,7 @@ const updateStock3 = async (req, res) => {
 
         if (!itemId || !itemType || isNaN(quantity) || quantity <= 0) {
           throw new Error(
-            "Invalid item data: itemId, itemType and valid quantity required"
+            "Invalid item data: itemId, itemType and valid quantity required",
           );
         }
 
@@ -4694,7 +5137,6 @@ const updateStock3 = async (req, res) => {
       message: "Stock updated successfully",
       data: result,
     });
-
   } catch (error) {
     console.log("ERROR: ", error);
 
@@ -4720,7 +5162,6 @@ const updateStock3 = async (req, res) => {
   }
 };
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // GET outstanding returnable materials for a given employee
 // GET /store-keeper/returnMaterial/outstanding?empId=xxx
@@ -4731,10 +5172,14 @@ const getOutstandingReturnableMaterials = async (req, res) => {
     const warehouseId = req.user?.warehouseId;
 
     if (!empId) {
-      return res.status(400).json({ success: false, message: "empId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "empId is required" });
     }
     if (!warehouseId) {
-      return res.status(400).json({ success: false, message: "Warehouse not assigned to user" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Warehouse not assigned to user" });
     }
 
     // Verify employee exists
@@ -4743,7 +5188,9 @@ const getOutstandingReturnableMaterials = async (req, res) => {
       select: { id: true, name: true },
     });
     if (!emp) {
-      return res.status(404).json({ success: false, message: "Employee not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Employee not found" });
     }
 
     // Fetch all direct item issues for this employee (same warehouse)
@@ -4757,13 +5204,19 @@ const getOutstandingReturnableMaterials = async (req, res) => {
     const issuedMap = new Map(); // itemId -> { totalIssued, unit, isMongo }
 
     for (const issue of issues) {
-      const items = Array.isArray(issue.rawMaterialIssued) ? issue.rawMaterialIssued : [];
+      const items = Array.isArray(issue.rawMaterialIssued)
+        ? issue.rawMaterialIssued
+        : [];
       for (const item of items) {
         if (item.issueType === "RETURNABLE" && item.rawMaterialId) {
           const qty = parseFloat(item.quantity) || 0;
           const isMongo = mongoose.Types.ObjectId.isValid(item.rawMaterialId);
           if (!issuedMap.has(item.rawMaterialId)) {
-            issuedMap.set(item.rawMaterialId, { totalIssued: 0, unit: item.unit || null, isMongo });
+            issuedMap.set(item.rawMaterialId, {
+              totalIssued: 0,
+              unit: item.unit || null,
+              isMongo,
+            });
           }
           issuedMap.get(item.rawMaterialId).totalIssued += qty;
         }
@@ -4777,7 +5230,11 @@ const getOutstandingReturnableMaterials = async (req, res) => {
     // Fetch existing returns for this employee (covers both rawMaterialId and installationItemId)
     const existingReturns = await prisma.materialReturn.findMany({
       where: { empId, warehouseId },
-      select: { rawMaterialId: true, installationItemId: true, returnedQty: true },
+      select: {
+        rawMaterialId: true,
+        installationItemId: true,
+        returnedQty: true,
+      },
     });
 
     // Aggregate returned quantities — use whichever field is set as the key
@@ -4804,17 +5261,22 @@ const getOutstandingReturnableMaterials = async (req, res) => {
         })
       : [];
     const mysqlNameMap = {};
-    rawMaterials.forEach((rm) => { mysqlNameMap[rm.id] = rm; });
+    rawMaterials.forEach((rm) => {
+      mysqlNameMap[rm.id] = rm;
+    });
 
     // Fetch MongoDB installation item names
     let mongoNameMap = {};
     if (mongoIds.length) {
       const mongoItems = await SystemItem.find(
         { _id: { $in: mongoIds } },
-        { itemName: 1, unit: 1 }
+        { itemName: 1, unit: 1 },
       ).lean();
       mongoItems.forEach((item) => {
-        mongoNameMap[item._id.toString()] = { name: item.itemName, unit: item.unit };
+        mongoNameMap[item._id.toString()] = {
+          name: item.itemName,
+          unit: item.unit,
+        };
       });
     }
 
@@ -4825,7 +5287,9 @@ const getOutstandingReturnableMaterials = async (req, res) => {
       const remaining = Math.max(0, data.totalIssued - totalReturned);
       if (remaining <= 0) continue;
 
-      const nameData = data.isMongo ? mongoNameMap[itemId] : mysqlNameMap[itemId];
+      const nameData = data.isMongo
+        ? mongoNameMap[itemId]
+        : mysqlNameMap[itemId];
       result.push({
         rawMaterialId: itemId,
         name: nameData?.name || itemId,
@@ -4867,16 +5331,22 @@ const returnMaterial = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
     if (!warehouseId) {
-      return res.status(400).json({ success: false, message: "Warehouse not assigned to user" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Warehouse not assigned to user" });
     }
 
     const { empId, returns, remarks } = req.body;
 
     if (!empId) {
-      return res.status(400).json({ success: false, message: "empId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "empId is required" });
     }
     if (!Array.isArray(returns) || returns.length === 0) {
-      return res.status(400).json({ success: false, message: "returns must be a non-empty array" });
+      return res
+        .status(400)
+        .json({ success: false, message: "returns must be a non-empty array" });
     }
 
     // Verify employee
@@ -4885,7 +5355,9 @@ const returnMaterial = async (req, res) => {
       select: { id: true, name: true },
     });
     if (!emp) {
-      return res.status(404).json({ success: false, message: "Employee not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Employee not found" });
     }
 
     // Build issued totals for RETURNABLE items from DirectItemIssue records
@@ -4896,11 +5368,16 @@ const returnMaterial = async (req, res) => {
 
     const issuedTotals = new Map(); // itemId -> qty
     for (const issue of issues) {
-      const items = Array.isArray(issue.rawMaterialIssued) ? issue.rawMaterialIssued : [];
+      const items = Array.isArray(issue.rawMaterialIssued)
+        ? issue.rawMaterialIssued
+        : [];
       for (const item of items) {
         if (item.issueType === "RETURNABLE" && item.rawMaterialId) {
           const qty = parseFloat(item.quantity) || 0;
-          issuedTotals.set(item.rawMaterialId, (issuedTotals.get(item.rawMaterialId) || 0) + qty);
+          issuedTotals.set(
+            item.rawMaterialId,
+            (issuedTotals.get(item.rawMaterialId) || 0) + qty,
+          );
         }
       }
     }
@@ -4908,13 +5385,20 @@ const returnMaterial = async (req, res) => {
     // Build already-returned totals (both mysql and mongo returns)
     const existingReturns = await prisma.materialReturn.findMany({
       where: { empId, warehouseId },
-      select: { rawMaterialId: true, installationItemId: true, returnedQty: true },
+      select: {
+        rawMaterialId: true,
+        installationItemId: true,
+        returnedQty: true,
+      },
     });
     const returnedTotals = new Map();
     for (const r of existingReturns) {
       const itemId = r.rawMaterialId || r.installationItemId;
       if (!itemId) continue;
-      returnedTotals.set(itemId, (returnedTotals.get(itemId) || 0) + r.returnedQty);
+      returnedTotals.set(
+        itemId,
+        (returnedTotals.get(itemId) || 0) + r.returnedQty,
+      );
     }
 
     // Classify each return item as MySQL or MongoDB
@@ -4925,11 +5409,21 @@ const returnMaterial = async (req, res) => {
       const { rawMaterialId, returnQty } = item;
 
       if (!rawMaterialId) {
-        return res.status(400).json({ success: false, message: "rawMaterialId is required for each return item" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "rawMaterialId is required for each return item",
+          });
       }
       const qty = parseFloat(returnQty);
       if (isNaN(qty) || qty <= 0) {
-        return res.status(400).json({ success: false, message: `returnQty must be > 0 for item ${rawMaterialId}` });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: `returnQty must be > 0 for item ${rawMaterialId}`,
+          });
       }
 
       const totalIssued = issuedTotals.get(rawMaterialId) || 0;
@@ -5017,13 +5511,13 @@ const returnMaterial = async (req, res) => {
       // Restore qty to warehouse inventory (MongoDB)
       await InstallationInventory.updateOne(
         { warehouseId, systemItemId: installationItemId },
-        { $inc: { quantity: qty } }
+        { $inc: { quantity: qty } },
       );
 
       // Deduct from employee's user stock (MongoDB)
       await InstallationInventory.updateOne(
         { assignedTo: empId, itemId: installationItemId },
-        { $inc: { quantity: -qty } }
+        { $inc: { quantity: -qty } },
       );
 
       // Record return (rawMaterialId = null for mongo items)
@@ -5041,7 +5535,10 @@ const returnMaterial = async (req, res) => {
       });
     }
 
-    return res.json({ success: true, message: "Material returned to store successfully" });
+    return res.json({
+      success: true,
+      message: "Material returned to store successfully",
+    });
   } catch (error) {
     console.error("returnMaterial ERROR:", error);
     return res.status(500).json({
