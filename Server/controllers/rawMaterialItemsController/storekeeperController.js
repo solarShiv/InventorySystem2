@@ -196,6 +196,157 @@ const getRawMaterialList = async (req, res) => {
     });
   }
 };
+// ========= Dikshant ============
+// const getWarehouseRawMaterialList = async (req, res) => {
+//   try {
+//     const warehouseId = req.user?.warehouseId;
+//     if (!warehouseId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Warehouse not assigned to user.",
+//       });
+//     }
+
+//     const warehouse = await Warehouse.findById(warehouseId);
+//     if (!warehouse) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Warehouse not found.",
+//       });
+//     }
+
+//     // -------------------------------------------
+//     const inventoryItems = await InstallationInventory.find({ warehouseId })
+//       .populate("systemItemId", "itemName unit isUsed")
+//       .lean();
+
+//     let totalDesired = 0;
+
+//     const commonItems = [];
+
+//     inventoryItems.forEach((item) => {
+//       if (!item.systemItemId) return;
+
+//       const pumpHead = getPumpHead(item.systemItemId.itemName);
+//       if (!pumpHead) {
+//         commonItems.push(item);
+//       }
+//     });
+
+//     const inventoryMap = new Map();
+
+//     inventoryItems.forEach((item) => {
+//       if (!item.systemItemId) return;
+//       const key = item.systemItemId._id.toString();
+//       inventoryMap.set(key, (inventoryMap.get(key) || 0) + item.quantity);
+//     });
+
+//     /* =====================================================
+//        STEP 5: COMMON ITEMS
+//     ===================================================== */
+//     const commonItemsResponse = commonItems.map((item) => {
+//       const itemId = item.systemItemId._id.toString();
+//       const stockQty = inventoryMap.get(itemId) || 0;
+
+//       return {
+//         id: item.systemItemId._id,
+//         name: item.systemItemId.itemName,
+//         stock: stockQty,
+//         unit: item.systemItemId.unit,
+//         isUsed: item.systemItemId.isUsed,
+//       };
+//     });
+
+//     const installationData = commonItemsResponse.map((item) => {
+//       return {
+//         id: item.id,
+//         name: item.name,
+//         stock: item.stock,
+//         unit: item?.unit,
+//         isUsed: item?.isUsed,
+//         type: "INSTALLATION",
+//       };
+//     });
+
+//     // console.log(commonItemsResponse)
+//     // -------------------------------------------
+
+//     // 1. Fetch from WarehouseStock instead
+//     const warehouseData = await prisma.warehouseStock.findMany({
+//       where: {
+//         warehouseId: warehouseId,
+//       },
+//       include: {
+//         rawMaterial: {
+//           select: {
+//             name: true,
+//             isUsed: true,
+//           },
+//         },
+//       },
+//     });
+
+//     // 2. Format the data to match your previous response structure
+//     const formattedData = warehouseData.map((item) => {
+//       // Fallback to 0 if quantity is null/undefined
+//       const stock = item.quantity ?? 0;
+
+//       return {
+//         id: item.rawMaterialId, // Using the material ID
+//         name: item.rawMaterial?.name || "Unknown",
+//         stock: formatStock(stock),
+//         rawStock: stock, // used for sorting
+//         unit: item.unit,
+//         isUsed: item.isUsed ?? item.rawMaterial?.isUsed,
+//       };
+//     });
+
+//     // 3. Keep your existing sorting logic
+//     const sortedData = formattedData.sort((a, b) => {
+//       if (a.isUsed === b.isUsed) {
+//         return a.rawStock - b.rawStock;
+//       }
+//       return a.isUsed ? -1 : 1;
+//     });
+
+//     // 4. Remove helper field for the final response
+//     // const cleanedData = sortedData.map(({ rawStock, ...rest }) => rest);
+
+//     const cleanedData = sortedData.map(({ rawStock, ...rest }) => ({
+//       ...rest,
+//       type: "RAW_MATERIAL",
+//     }));
+
+//     const data = [...cleanedData, ...installationData].sort((a, b) =>
+//       a.name.localeCompare(b.name),
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: `${warehouse.warehouseName} raw material fetched successfully`,
+//       data: data,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error.message,
+//     });
+//   }
+// };
+ 
+// ============ Shiv IT ==========
+
+// Normalizes the JSON column to { containerName: number } and drops empty containers
+const normalizeContainerStock = (json) => {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return {};
+  const result = {};
+  for (const [container, qty] of Object.entries(json)) {
+    const n = Number(qty);
+    if (Number.isFinite(n) && n > 0) result[container] = n;
+  }
+  return result;
+};
 
 const getWarehouseRawMaterialList = async (req, res) => {
   try {
@@ -215,116 +366,99 @@ const getWarehouseRawMaterialList = async (req, res) => {
       });
     }
 
-    // -------------------------------------------
+    // ============ INSTALLATION ITEMS (Mongo) ============
     const inventoryItems = await InstallationInventory.find({ warehouseId })
       .populate("systemItemId", "itemName unit isUsed")
       .lean();
 
-    let totalDesired = 0;
-
-    const commonItems = [];
-
-    inventoryItems.forEach((item) => {
-      if (!item.systemItemId) return;
-
-      const pumpHead = getPumpHead(item.systemItemId.itemName);
-      if (!pumpHead) {
-        commonItems.push(item);
-      }
-    });
-
+    // Sum quantity per system item (one warehouse can have multiple rows per item)
     const inventoryMap = new Map();
+    const systemItemMap = new Map();
 
-    inventoryItems.forEach((item) => {
-      if (!item.systemItemId) return;
+    for (const item of inventoryItems) {
+      if (!item.systemItemId) continue;
       const key = item.systemItemId._id.toString();
       inventoryMap.set(key, (inventoryMap.get(key) || 0) + item.quantity);
-    });
+      systemItemMap.set(key, item.systemItemId);
+    }
 
-    /* =====================================================
-       STEP 5: COMMON ITEMS
-    ===================================================== */
-    const commonItemsResponse = commonItems.map((item) => {
-      const itemId = item.systemItemId._id.toString();
-      const stockQty = inventoryMap.get(itemId) || 0;
+    // Build ONE entry per item (skip pump-head items)
+    const installationData = [];
+    for (const [key, sysItem] of systemItemMap) {
+      if (getPumpHead(sysItem.itemName)) continue;
 
-      return {
-        id: item.systemItemId._id,
-        name: item.systemItemId.itemName,
-        stock: stockQty,
-        unit: item.systemItemId.unit,
-        isUsed: item.systemItemId.isUsed,
-      };
-    });
-
-    const installationData = commonItemsResponse.map((item) => {
-      return {
-        id: item.id,
-        name: item.name,
-        stock: item.stock,
-        unit: item?.unit,
-        isUsed: item?.isUsed,
+      installationData.push({
+        id: sysItem._id,
+        name: sysItem.itemName,
+        stock: inventoryMap.get(key) || 0,
+        unit: sysItem.unit,
+        isUsed: sysItem.isUsed,
         type: "INSTALLATION",
-      };
-    });
+      });
+    }
 
-    // console.log(commonItemsResponse)
-    // -------------------------------------------
-
-    // 1. Fetch from WarehouseStock instead
+    // ============ RAW MATERIALS (MySQL) ============
     const warehouseData = await prisma.warehouseStock.findMany({
-      where: {
-        warehouseId: warehouseId,
-      },
+      where: { warehouseId },
       include: {
-        rawMaterial: {
-          select: {
-            name: true,
-            isUsed: true,
-          },
-        },
+        rawMaterial: { select: { name: true, isUsed: true } },
       },
     });
 
-    // 2. Format the data to match your previous response structure
     const formattedData = warehouseData.map((item) => {
-      // Fallback to 0 if quantity is null/undefined
       const stock = item.quantity ?? 0;
-
       return {
-        id: item.rawMaterialId, // Using the material ID
+        id: item.rawMaterialId,
         name: item.rawMaterial?.name || "Unknown",
         stock: formatStock(stock),
-        rawStock: stock, // used for sorting
+        rawStock: stock,
         unit: item.unit,
         isUsed: item.isUsed ?? item.rawMaterial?.isUsed,
       };
     });
 
-    // 3. Keep your existing sorting logic
-    const sortedData = formattedData.sort((a, b) => {
-      if (a.isUsed === b.isUsed) {
-        return a.rawStock - b.rawStock;
-      }
-      return a.isUsed ? -1 : 1;
-    });
+    const rawMaterialData = formattedData
+      .sort((a, b) =>
+        a.isUsed === b.isUsed ? a.rawStock - b.rawStock : a.isUsed ? -1 : 1,
+      )
+      .map(({ rawStock, ...rest }) => ({ ...rest, type: "RAW_MATERIAL" }));
 
-    // 4. Remove helper field for the final response
-    // const cleanedData = sortedData.map(({ rawStock, ...rest }) => rest);
+    // ============ CONTAINER-WISE STOCK ============
+    const allItemIds = [
+      ...rawMaterialData.map((i) => String(i.id)),
+      ...installationData.map((i) => String(i.id)),
+    ];
 
-    const cleanedData = sortedData.map(({ rawStock, ...rest }) => ({
-      ...rest,
-      type: "RAW_MATERIAL",
-    }));
+    const containerRows = allItemIds.length
+      ? await prisma.item_container_wise_history.findMany({
+          where: { item_id: { in: allItemIds } },
+        })
+      : [];
 
-    const data = [...cleanedData, ...installationData].sort((a, b) =>
-      a.name.localeCompare(b.name),
+    const containerMap = new Map(
+      containerRows.map((row) => [
+        row.item_id,
+        normalizeContainerStock(row.stock_with_container),
+      ]),
     );
+
+    const attachContainers = (item) => {
+      const containerStock = containerMap.get(String(item.id)) || {};
+      return {
+        ...item,
+        containerStock, // { container001: 50, container002: 30 }
+        containerCount: Object.keys(containerStock).length,
+      };
+    };
+
+    const data = [...rawMaterialData, ...installationData]
+      .map(attachContainers)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return res.status(200).json({
       success: true,
       message: `${warehouse.warehouseName} raw material fetched successfully`,
-      data: data,
+      data,
     });
   } catch (error) {
     return res.status(500).json({
@@ -334,7 +468,6 @@ const getWarehouseRawMaterialList = async (req, res) => {
     });
   }
 };
-
 const showIncomingItemRequest = async (req, res) => {
   try {
     const empId = req.query?.empId;
