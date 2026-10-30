@@ -1564,24 +1564,25 @@ const createPurchaseOrder = async (req, res) => {
       exchangeRate,
       expectedDeliveryDate,
       otherCharges = [],
-      prePoId = null
+      prePoId = null,
     } = req.body;
-    console.log("req ->", req.body)
+    console.log("req ->", req.body);
     logger.error({
       message: "Incoming PO Request",
-      data: req.body
+      data: req.body,
     });
 
     if (prePoId) {
-
       let prePo = await prisma.prePo.findFirst({
         where: {
-          id: prePoId
-        }
-      })
+          id: prePoId,
+        },
+      });
 
-      if (!prePo) return res.status(404).json({ success: false, message: "PrePo Not found" });
-
+      if (!prePo)
+        return res
+          .status(404)
+          .json({ success: false, message: "PrePo Not found" });
     }
 
     const userId = req.user?.id;
@@ -1940,7 +1941,7 @@ const createPurchaseOrder = async (req, res) => {
 
     let warehouseName = null;
     const warehouseData = await Warehouse.findById(warehouseId);
-    
+
     if (warehouseData) {
       warehouseName = warehouseData?.warehouseName;
     }
@@ -2007,26 +2008,23 @@ const createPurchaseOrder = async (req, res) => {
       return po;
     });
 
-
     if (prePoId) {
-
       await prisma.prePo.update({
         where: {
-          id: prePoId
+          id: prePoId,
         },
         data: {
           poId: newPO.id,
           poNumber: newPO.poNumber,
-          status: 'PO_GENERATED',
-          updatedBy: req.user.id
-        }
+          status: "PO_GENERATED",
+          updatedBy: req.user.id,
+        },
       });
     }
 
-
     logger.error({
       message: "Outgoing PO Response",
-      data: newPO
+      data: newPO,
     });
     return res.status(201).json({
       success: true,
@@ -3701,11 +3699,11 @@ const downloadPOPDF = async (req, res) => {
       const oldPdfData =
         po.pdfUrl || po.pdfName || po.pdfGeneratedAt
           ? {
-            pdfName: po.pdfName,
-            pdfUrl: po.pdfUrl,
-            generatedAt: po.pdfGeneratedAt,
-            generatedBy: po.pdfGeneratedBy,
-          }
+              pdfName: po.pdfName,
+              pdfUrl: po.pdfUrl,
+              generatedAt: po.pdfGeneratedAt,
+              generatedBy: po.pdfGeneratedBy,
+            }
           : null;
 
       const newPdfData = {
@@ -3821,11 +3819,11 @@ const downloadPOPDF2 = async (req, res) => {
       const oldPdfData =
         po.pdfUrl || po.pdfName || po.pdfGeneratedAt
           ? {
-            pdfName: po.pdfName,
-            pdfUrl: po.pdfUrl,
-            generatedAt: po.pdfGeneratedAt,
-            generatedBy: po.pdfGeneratedBy,
-          }
+              pdfName: po.pdfName,
+              pdfUrl: po.pdfUrl,
+              generatedAt: po.pdfGeneratedAt,
+              generatedBy: po.pdfGeneratedBy,
+            }
           : null;
 
       const newPdfData = {
@@ -4792,11 +4790,11 @@ const downloadDebitNote = async (req, res) => {
       const oldPdfData =
         debitNote.pdfUrl || debitNote.pdfName || debitNote.pdfGeneratedAt
           ? {
-            pdfName: debitNote.pdfName,
-            pdfUrl: debitNote.pdfUrl,
-            generatedAt: debitNote.pdfGeneratedAt,
-            generatedBy: debitNote.pdfGeneratedBy,
-          }
+              pdfName: debitNote.pdfName,
+              pdfUrl: debitNote.pdfUrl,
+              generatedAt: debitNote.pdfGeneratedAt,
+              generatedBy: debitNote.pdfGeneratedBy,
+            }
           : null;
 
       const newPdfData = {
@@ -5402,8 +5400,8 @@ const updateDebitNote2 = async (req, res) => {
       finalCurrency === "INR"
         ? new Decimal(1)
         : new Decimal(
-          exchangeRate || existingDebitNote.exchangeRate,
-        ).toDecimalPlaces(4, Decimal.ROUND_DOWN);
+            exchangeRate || existingDebitNote.exchangeRate,
+          ).toDecimalPlaces(4, Decimal.ROUND_DOWN);
 
     /* ---------------- TOTALS ---------------- */
     let foreignSubTotal = new Decimal(0);
@@ -6417,8 +6415,9 @@ const toggleTermConditionStatus = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Term ${isActiveBoolean ? "Activated" : "Deactivated"
-        } successfully`,
+      message: `Term ${
+        isActiveBoolean ? "Activated" : "Deactivated"
+      } successfully`,
       data: updatedTerm,
     });
   } catch (error) {
@@ -6513,6 +6512,95 @@ const formatStock = (value) => {
   return Number(value.toFixed(2)); // decimals → 2 digits
 };
 
+// const getRawMaterialByWarehouse = async (req, res) => {
+//   try {
+//     const warehouseId = req.query?.warehouseId || req.user?.warehouseId;
+//     if (!warehouseId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "warehouseId not found",
+//       });
+//     }
+//     const warehouseData = await Warehouse.findById(warehouseId);
+//     if (!warehouseData) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Warehouse Not Found",
+//       });
+//     }
+
+//     const allRawMaterial = await prisma.rawMaterial.findMany({
+//       select: {
+//         id: true,
+//         name: true,
+//         unit: true,
+//         conversionUnit: true,
+//         warehouseStock: {
+//           where: {
+//             warehouseId,
+//           },
+//           select: {
+//             quantity: true,
+//             isUsed: true,
+//           },
+//         },
+//       },
+//     });
+
+//     const formattedData = allRawMaterial.map((data) => {
+//       const warehouseData = data.warehouseStock[0] || {};
+
+//       const stock = warehouseData.quantity ?? 0;
+//       const isUsed = warehouseData.isUsed ?? false;
+
+//       return {
+//         id: data.id,
+//         name: data.name,
+//         stock: formatStock(stock),
+//         rawStock: stock, // only for sorting
+//         unit: data.unit,
+//         conversionUnit: data.conversionUnit ? data?.conversionUnit : null,
+//         isUsed,
+//         outOfStock: stock === 0,
+//       };
+//     });
+
+//     const sortedData = formattedData.sort((a, b) => {
+//       // Step 1: In-stock first, out-of-stock last
+//       if (a.outOfStock !== b.outOfStock) {
+//         return a.outOfStock ? 1 : -1;
+//       }
+
+//       // Step 2: Then sort by isUsed
+//       if (a.isUsed !== b.isUsed) {
+//         return a.isUsed ? -1 : 1;
+//       }
+
+//       // Step 3: Then sort by stock quantity
+//       return a.rawStock - b.rawStock;
+//     });
+
+//     const inventoryItems = await InstallationInventory.find({ warehouseId })
+//       .populate("systemItemId", "itemName unit isUsed")
+//       .lean();
+//     console.log("inventoryItems :-", inventoryItems[0]);
+//     const cleanedData = sortedData.map(({ rawStock, ...rest }) => rest);
+
+//     return res.status(200).json({
+//       success: true,
+//       message: `${warehouseData.warehouseName} raw material fetched successfully`,
+//       data: cleanedData,
+//     });
+//   } catch (error) {
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal Server Error",
+//       error: error.message,
+//     });
+//   }
+// };
+
+//---------------------- Vendor API - V2 --------------------//
 const getRawMaterialByWarehouse = async (req, res) => {
   try {
     const warehouseId = req.query?.warehouseId || req.user?.warehouseId;
@@ -6522,6 +6610,7 @@ const getRawMaterialByWarehouse = async (req, res) => {
         message: "warehouseId not found",
       });
     }
+
     const warehouseData = await Warehouse.findById(warehouseId);
     if (!warehouseData) {
       return res.status(400).json({
@@ -6530,6 +6619,7 @@ const getRawMaterialByWarehouse = async (req, res) => {
       });
     }
 
+    // ================= MYSQL RAW MATERIALS =================
     const allRawMaterial = await prisma.rawMaterial.findMany({
       select: {
         id: true,
@@ -6537,9 +6627,7 @@ const getRawMaterialByWarehouse = async (req, res) => {
         unit: true,
         conversionUnit: true,
         warehouseStock: {
-          where: {
-            warehouseId,
-          },
+          where: { warehouseId },
           select: {
             quantity: true,
             isUsed: true,
@@ -6548,13 +6636,9 @@ const getRawMaterialByWarehouse = async (req, res) => {
       },
     });
 
-    
-
-    const formattedData = allRawMaterial.map((data) => {
-      const warehouseData = data.warehouseStock[0] || {};
-
-      const stock = warehouseData.quantity ?? 0;
-      const isUsed = warehouseData.isUsed ?? false;
+    const rawMaterialData = allRawMaterial.map((data) => {
+      const ws = data.warehouseStock[0] || {};
+      const stock = ws.quantity ?? 0;
 
       return {
         id: data.id,
@@ -6562,13 +6646,39 @@ const getRawMaterialByWarehouse = async (req, res) => {
         stock: formatStock(stock),
         rawStock: stock, // only for sorting
         unit: data.unit,
-        conversionUnit: data.conversionUnit ? data?.conversionUnit : null,
-        isUsed,
+        conversionUnit: data.conversionUnit ? data.conversionUnit : null,
+        isUsed: ws.isUsed ?? false,
         outOfStock: stock === 0,
+        itemSource: "mysql",
       };
     });
 
-    const sortedData = formattedData.sort((a, b) => {
+    // ================= MONGO INSTALLATION INVENTORY =================
+    const inventoryItems = await InstallationInventory.find({ warehouseId })
+      .populate("systemItemId", "itemName unit conversionUnit isUsed")
+      .lean();
+
+    const inventoryData = inventoryItems
+      .filter((inv) => inv.systemItemId) // skip if the system item was deleted
+      .map((inv) => {
+        const item = inv.systemItemId;
+        const stock = inv.quantity ?? 0;
+
+        return {
+          id: String(item._id),
+          name: item.itemName,
+          stock: formatStock(stock),
+          rawStock: stock, // only for sorting
+          unit: item.unit,
+          conversionUnit: item.conversionUnit ? item.conversionUnit : null,
+          isUsed: inv.isUsed ?? item.isUsed ?? false,
+          outOfStock: stock === 0,
+          itemSource: "mongo",
+        };
+      });
+
+    // ================= MERGE + SORT =================
+    const sortedData = [...rawMaterialData, ...inventoryData].sort((a, b) => {
       // Step 1: In-stock first, out-of-stock last
       if (a.outOfStock !== b.outOfStock) {
         return a.outOfStock ? 1 : -1;
@@ -6598,9 +6708,6 @@ const getRawMaterialByWarehouse = async (req, res) => {
     });
   }
 };
-
-//---------------------- Vendor API - V2 --------------------//
-
 const getPODashboard2 = async (req, res) => {
   try {
     const { startOfToday, startOfMonth, startOfWeek, startFY, endFY } =
@@ -7182,7 +7289,7 @@ const createVendor = async (req, res) => {
     uploadedFiles.forEach((p) => {
       try {
         if (fs.existsSync(p)) fs.unlinkSync(p);
-      } catch (err) { }
+      } catch (err) {}
     });
 
     return res.status(500).json({
@@ -8245,9 +8352,7 @@ const createPaymentRequest3 = async (req, res) => {
 
         if (!item) continue;
 
-        const rate = Number(
-          isINR ? item.rate || 0 : item.rateInForeign || 0
-        );
+        const rate = Number(isINR ? item.rate || 0 : item.rateInForeign || 0);
 
         if (item.gstRate != null) {
           hasItemGST = true;
@@ -8265,8 +8370,7 @@ const createPaymentRequest3 = async (req, res) => {
         console.log(po.totalGST);
         console.log(po.subTotal);
         console.log(subtotal / po.subTotal);
-        totalReceivedAmount +=
-          (po.totalGST || 0) * (subtotal / po.subTotal);
+        totalReceivedAmount += (po.totalGST || 0) * (subtotal / po.subTotal);
         console.log(totalReceivedAmount);
       }
 
@@ -8573,7 +8677,6 @@ const createPaymentRequest3 = async (req, res) => {
 //   }
 // };
 
-
 // const createPaymentRequest3 = async (req, res) => {
 //   try {
 //     const userId = req.user?.id;
@@ -8669,21 +8772,21 @@ const createPaymentRequest3 = async (req, res) => {
 //     // 🚀 🔥 SQL AGGREGATION STARTS HERE
 //     if (isMaterialLinkedPayment) {
 //       const result = await prisma.$queryRaw`
-//         SELECT 
+//         SELECT
 //           SUM(
-//             CASE 
-//               WHEN poi.gstRate IS NOT NULL 
-//               THEN (por.goodQty * 
-//                    (CASE 
-//                       WHEN ${isINR ? 1 : 0} = 1 THEN poi.rate 
-//                       ELSE poi.rateInForeign 
+//             CASE
+//               WHEN poi.gstRate IS NOT NULL
+//               THEN (por.goodQty *
+//                    (CASE
+//                       WHEN ${isINR ? 1 : 0} = 1 THEN poi.rate
+//                       ELSE poi.rateInForeign
 //                     END)
 //                    * (1 + poi.gstRate / 100)
 //               )
-//               ELSE (por.goodQty * 
-//                    (CASE 
-//                       WHEN ${isINR ? 1 : 0} = 1 THEN poi.rate 
-//                       ELSE poi.rateInForeign 
+//               ELSE (por.goodQty *
+//                    (CASE
+//                       WHEN ${isINR ? 1 : 0} = 1 THEN poi.rate
+//                       ELSE poi.rateInForeign
 //                     END)
 //               )
 //             END
@@ -8692,7 +8795,7 @@ const createPaymentRequest3 = async (req, res) => {
 //           MAX(CASE WHEN poi.gstRate IS NOT NULL THEN 1 ELSE 0 END) AS hasItemGST
 
 //         FROM PurchaseOrderReceipt por
-//         JOIN PurchaseOrderItem poi 
+//         JOIN PurchaseOrderItem poi
 //           ON por.purchaseOrderItemId = poi.id
 
 //         WHERE por.purchaseOrderId = ${poId};
@@ -9093,7 +9196,6 @@ const getPOsReceivings = async (req, res) => {
       },
     });
 
-
     const formattedPOs = pos.map((po) => ({
       id: po.id,
       poNumber: po.poNumber,
@@ -9107,7 +9209,7 @@ const getPOsReceivings = async (req, res) => {
       expectedDeliveryDate: po.expectedDeliveryDate,
       status: po.status,
       approvalStatus: po.approvalStatus,
-      date:po.updatedAt,
+      date: po.updatedAt,
       // ✅ ALL items (no filtering)
       items: po.items.map((item) => ({
         id: item.id,
@@ -9314,7 +9416,7 @@ const uploadVendorInvoice = async (req, res) => {
     uploadedFiles.forEach((p) => {
       try {
         if (fs.existsSync(p)) fs.unlinkSync(p);
-      } catch (err) { }
+      } catch (err) {}
     });
 
     return res.status(500).json({
@@ -11291,7 +11393,6 @@ const updatePurchaseOrderController = async (req, res) => {
   }
 };
 
-
 module.exports = {
   createCompany,
   createVendor,
@@ -11358,5 +11459,5 @@ module.exports = {
   createPaymentRequest3,
 
   //new version api - 26-06-2026
-  updatePurchaseOrderController
+  updatePurchaseOrderController,
 };
