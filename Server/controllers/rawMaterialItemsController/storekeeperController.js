@@ -3358,6 +3358,40 @@ const directItemIssue = async (req, res) => {
 
 // ----------------Shiv-----------------
 
+/**
+ * Deduct container-wise stock (item_container_wise_history) for ANY item
+ * (MySQL uuid items and Mongo ObjectId items both use item_id).
+ */
+const deductContainerStock = async (tx, itemId, containersToDeduct) => {
+  const row = await tx.item_container_wise_history.findFirst({
+    where: { item_id: itemId },
+  });
+
+  if (!row) throw new Error(`Container stock not found for ${itemId}`);
+
+  const stock = { ...(row.stock_with_container || {}) };
+
+  for (const [containerName, deductQty] of containersToDeduct.entries()) {
+    const available = Number(stock[containerName]);
+
+    if (isNaN(available)) {
+      throw new Error(`Container ${containerName} not found for ${itemId}`);
+    }
+    if (available < deductQty) {
+      throw new Error(
+        `Insufficient stock in ${containerName} for ${itemId}. Available: ${available}, Required: ${deductQty}`,
+      );
+    }
+
+    stock[containerName] = available - deductQty;
+  }
+
+  await tx.item_container_wise_history.update({
+    where: { id: row.id },
+    data: { stock_with_container: stock },
+  });
+};
+
 const newDirectItemIssue = async (req, res) => {
   try {
     const issuedBy = req.user?.id;
@@ -3441,7 +3475,7 @@ const newDirectItemIssue = async (req, res) => {
     const containerMap = new Map(); // rawMaterialId -> Map(containerName -> qty)
     const mySqlRawMaterial = [];
     const mongoRawMaterial = [];
-    console.log("rawMaterialIssued =", rawMaterialIssued);
+
     for (let i = 0; i < rawMaterialIssued.length; i++) {
       const item = rawMaterialIssued[i];
       const quantity = Number(item.quantity);
@@ -3460,46 +3494,45 @@ const newDirectItemIssue = async (req, res) => {
         });
       }
 
-      const isMongo = mongoose.Types.ObjectId.isValid(item.rawMaterialId);
+      /* ---- container breakdown is mandatory for ALL items ---- */
+      if (!Array.isArray(item.containers) || item.containers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `containers required for rawMaterialId ${item.rawMaterialId}`,
+        });
+      }
 
-      if (isMongo) {
+      let containerSum = 0;
+      const perItem = containerMap.get(item.rawMaterialId) || new Map();
+
+      for (const c of item.containers) {
+        const cQty = Number(c.quantity); // "4" -> 4
+        const key = c.containerName; // key used in stock_with_container
+
+        if (!key || isNaN(cQty) || cQty <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid container entry for rawMaterialId ${item.rawMaterialId}`,
+          });
+        }
+
+        containerSum += cQty;
+        perItem.set(key, (perItem.get(key) || 0) + cQty);
+      }
+
+      if (Math.abs(containerSum - quantity) > 1e-9) {
+        return res.status(400).json({
+          success: false,
+          message: `Container quantities (${containerSum}) do not match issued quantity (${quantity}) for ${item.rawMaterialId}`,
+        });
+      }
+
+      containerMap.set(item.rawMaterialId, perItem);
+
+      /* ---- split mongo / mysql ---- */
+      if (mongoose.Types.ObjectId.isValid(item.rawMaterialId)) {
         if (!mongoRawMaterial.includes(item.rawMaterialId))
           mongoRawMaterial.push(item.rawMaterialId);
-
-        // container breakdown is mandatory for mongo items
-        if (!Array.isArray(item.containers) || item.containers.length === 0) {
-          return res.status(400).json({
-            success: false,
-            message: `containers required for rawMaterialId ${item.rawMaterialId}`,
-          });
-        }
-
-        let containerSum = 0;
-        const perItem = containerMap.get(item.rawMaterialId) || new Map();
-
-        for (const c of item.containers) {
-          const cQty = Number(c.quantity); // "4" -> 4
-          const key = c.containerName; // key used in stock_with_container
-
-          if (!key || isNaN(cQty) || cQty <= 0) {
-            return res.status(400).json({
-              success: false,
-              message: `Invalid container entry for rawMaterialId ${item.rawMaterialId}`,
-            });
-          }
-
-          containerSum += cQty;
-          perItem.set(key, (perItem.get(key) || 0) + cQty);
-        }
-
-        if (Math.abs(containerSum - quantity) > 1e-9) {
-          return res.status(400).json({
-            success: false,
-            message: `Container quantities (${containerSum}) do not match issued quantity (${quantity}) for ${item.rawMaterialId}`,
-          });
-        }
-
-        containerMap.set(item.rawMaterialId, perItem);
       } else {
         if (!mySqlRawMaterial.includes(item.rawMaterialId))
           mySqlRawMaterial.push(item.rawMaterialId);
@@ -3533,7 +3566,7 @@ const newDirectItemIssue = async (req, res) => {
 
     const result = await prisma.$transaction(async (tx) => {
       for (const [rawMaterialId, quantity] of materialMap.entries()) {
-        /* ===== MONGO ITEMS (container-wise) ===== */
+        /* ===== MONGO ITEMS ===== */
         if (mongoRawMaterial.includes(rawMaterialId)) {
           const system = await SystemItem.findOne({ _id: rawMaterialId });
           if (!system)
@@ -3551,38 +3584,12 @@ const newDirectItemIssue = async (req, res) => {
               `Insufficient inventory stock for ${rawMaterialId}.`,
             );
 
-          const row = await tx.item_container_wise_history.findFirst({
-            where: { item_id: rawMaterialId },
-          });
-
-          if (!row)
-            throw new Error(`Container stock not found for ${rawMaterialId}`);
-
-          const stock = { ...(row.stock_with_container || {}) };
-
-          for (const [containerName, deductQty] of containerMap
-            .get(rawMaterialId)
-            .entries()) {
-            const available = Number(stock[containerName]);
-
-            if (isNaN(available)) {
-              throw new Error(
-                `Container ${containerName} not found for ${rawMaterialId}`,
-              );
-            }
-            if (available < deductQty) {
-              throw new Error(
-                `Insufficient stock in ${containerName} for ${rawMaterialId}. Available: ${available}, Required: ${deductQty}`,
-              );
-            }
-
-            stock[containerName] = available - deductQty;
-          }
-
-          await tx.item_container_wise_history.update({
-            where: { id: row.id },
-            data: { stock_with_container: stock },
-          });
+          // container-wise deduction
+          await deductContainerStock(
+            tx,
+            rawMaterialId,
+            containerMap.get(rawMaterialId),
+          );
 
           mongoUpdates.push({ rawMaterialId, quantity });
         }
@@ -3620,6 +3627,13 @@ const newDirectItemIssue = async (req, res) => {
             },
             data: { quantity: { decrement: quantity } },
           });
+
+          // container-wise deduction
+          await deductContainerStock(
+            tx,
+            rawMaterialId,
+            containerMap.get(rawMaterialId),
+          );
 
           // Add to user stock
           await tx.userItemStock.upsert({
@@ -3680,7 +3694,6 @@ const newDirectItemIssue = async (req, res) => {
     });
   }
 };
-
 const getDirectItemIssueHistory = async (req, res) => {
   try {
     const warehouseId = req.user?.warehouseId;
