@@ -6017,7 +6017,205 @@ const returnMaterial = async (req, res) => {
     });
   }
 };
+/**
+ * POST /item-container-stock
+ *
+ * Body:
+ * {
+ *   "itemId": "acc3ac05-8a0d-400d-accc-6148f30f376c",   // MySQL uuid OR Mongo ObjectId
+ *   "containers": [
+ *     { "containerId": "de65c0df-06f4-40f7-bac7-c66ed6912fea", "quantity": 50 },
+ *     { "containerId": "c4145bf8-73c1-4402-bc18-5a8638f74ed2", "quantity": 25 }
+ *   ]
+ * }
+ *
+ * Saved in item_container_wise_history as:
+ *   item_id: itemId
+ *   stock_with_container: { "container001": 50, "container002": 25 }
+ */
+const addItemContainerStock = async (req, res) => {
+  try {
+    const userWarehouseId = req.user?.warehouseId;
 
+    /* ---------------- AUTH ---------------- */
+    if (!req.user?.id) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Unauthorized access" });
+    }
+
+    if (!userWarehouseId) {
+      return res.status(400).json({
+        success: false,
+        message: "Warehouse not assigned to user",
+      });
+    }
+
+    /* ---------------- BODY VALIDATION ---------------- */
+    const { itemId, containers } = req.body;
+
+    if (!itemId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "itemId is required" });
+    }
+
+    if (!Array.isArray(containers) || containers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "containers must be a non-empty array",
+      });
+    }
+
+    // containerId -> quantity (merge duplicates)
+    const incomingMap = new Map();
+
+    for (let i = 0; i < containers.length; i++) {
+      const c = containers[i];
+      const qty = Number(c.quantity);
+
+      if (!c.containerId) {
+        return res.status(400).json({
+          success: false,
+          message: `containerId missing at index ${i}`,
+        });
+      }
+
+      if (c.quantity === undefined || c.quantity === null || isNaN(qty) || qty < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid quantity for containerId ${c.containerId}`,
+        });
+      }
+
+      incomingMap.set(c.containerId, (incomingMap.get(c.containerId) || 0) + qty);
+    }
+
+    /* ---------------- 3. CHECK CONTAINERS EXIST ---------------- */
+    const containerIds = [...incomingMap.keys()];
+
+    const containerRows = await prisma.container_list.findMany({
+      where: { id: { in: containerIds } },
+      select: { id: true, name: true },
+    });
+
+    const foundIds = new Set(containerRows.map((c) => c.id));
+    const missing = containerIds.filter((id) => !foundIds.has(id));
+
+    if (missing.length > 0) {
+      return res.status(404).json({
+        success: false,
+        message: `Container not found: ${missing.join(", ")}`,
+      });
+    }
+
+    // containerName -> quantity
+    const incomingByName = new Map();
+    for (const row of containerRows) {
+      incomingByName.set(row.name, incomingMap.get(row.id));
+    }
+
+    /* ---------------- 1 & 2. CHECK ITEM QUANTITY (warehouse wise) ---------------- */
+    const isMongo = mongoose.Types.ObjectId.isValid(itemId);
+    let itemQuantity;
+
+    if (isMongo) {
+      // Mongo: SystemItem + InstallationInventory (warehouseId + systemItemId)
+      const systemItem = await SystemItem.findOne({ _id: itemId }).lean();
+      if (!systemItem) {
+        return res
+          .status(404)
+          .json({ success: false, message: "SystemItem not found" });
+      }
+
+      const inventory = await InstallationInventory.findOne({
+        warehouseId: userWarehouseId,
+        systemItemId: itemId,
+      }).lean();
+
+      if (!inventory) {
+        return res.status(404).json({
+          success: false,
+          message: "Item not found in installation inventory of this warehouse",
+        });
+      }
+
+      itemQuantity = Number(inventory.quantity);
+    } else {
+      // MySQL: RawMaterial stock of this warehouse
+      const warehouseStock = await prisma.warehouseStock.findUnique({
+        where: {
+          warehouseId_rawMaterialId: {
+            warehouseId: userWarehouseId,
+            rawMaterialId: itemId,
+          },
+        },
+      });
+
+      if (!warehouseStock) {
+        return res.status(404).json({
+          success: false,
+          message: "Raw material stock not found in this warehouse",
+        });
+      }
+
+      itemQuantity = Number(warehouseStock.quantity);
+    }
+
+    /* ---------------- SAVE ---------------- */
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.item_container_wise_history.findFirst({
+        where: { item_id: itemId },
+      });
+
+      // existing containers kept, incoming containers set to the sent quantity
+      const stock = { ...(existing?.stock_with_container || {}) };
+      for (const [name, qty] of incomingByName.entries()) {
+        stock[name] = qty;
+      }
+
+      const total = Object.values(stock).reduce(
+        (sum, q) => sum + Number(q || 0),
+        0,
+      );
+
+      // reject if containers total is more than item quantity
+      if (total > itemQuantity) {
+        throw new Error(
+          `Container total (${total}) is greater than item quantity (${itemQuantity})`,
+        );
+      }
+
+      if (existing) {
+        return await tx.item_container_wise_history.update({
+          where: { id: existing.id },
+          data: { stock_with_container: stock },
+        });
+      }
+
+      return await tx.item_container_wise_history.create({
+        data: { item_id: itemId, stock_with_container: stock },
+      });
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Container stock saved successfully",
+      data: result,
+    });
+  } catch (error) {
+    // business-rule rejections thrown inside the transaction
+    if (error.message?.startsWith("Container total")) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   getLineWorkerList,
   getRawMaterialList,
@@ -6046,6 +6244,7 @@ module.exports = {
   newDirectItemIssue,
   getOutstandingReturnableMaterials,
   returnMaterial,
+  addItemContainerStock
 };
 
 // [{
