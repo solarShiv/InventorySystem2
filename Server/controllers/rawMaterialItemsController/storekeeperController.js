@@ -3441,7 +3441,7 @@ const newDirectItemIssue = async (req, res) => {
     const containerMap = new Map(); // rawMaterialId -> Map(containerName -> qty)
     const mySqlRawMaterial = [];
     const mongoRawMaterial = [];
-
+    console.log("rawMaterialIssued =", rawMaterialIssued);
     for (let i = 0; i < rawMaterialIssued.length; i++) {
       const item = rawMaterialIssued[i];
       const quantity = Number(item.quantity);
