@@ -10,124 +10,124 @@ const uploadPurchaseOrderBill = require("../../middlewares/rawMaterialMiddleware
 router.get(
   "/getLineWorkerList",
   tokenVerification(["Store", "Production"]),
-  storekeeperController.getLineWorkerList
+  storekeeperController.getLineWorkerList,
 );
 
 router.get(
   "/getLineWorkerList2",
   tokenVerification(["Store"]),
-  storekeeperController.getLineWorkerList2
+  storekeeperController.getLineWorkerList2,
 );
 
 router.get(
   "/showIncomingItemRequest",
   tokenVerification(["Store"]),
-  storekeeperController.showIncomingItemRequest
+  storekeeperController.showIncomingItemRequest,
 );
 
 router.put(
   "/approveOrDeclineItemRequest",
   tokenVerification(["Store"]),
-  storekeeperController.approveOrDeclineItemRequest
+  storekeeperController.approveOrDeclineItemRequest,
 );
 
 router.post(
   "/sanctionItemForRequest",
   tokenVerification(["Store"]),
-  storekeeperController.sanctionItemForRequest
+  storekeeperController.sanctionItemForRequest,
 );
 
 router.post(
   "/sanctionItemForRequest2",
   tokenVerification(["Store"]),
-  storekeeperController.sanctionItemForRequest2
+  storekeeperController.sanctionItemForRequest2,
 );
 
 router.get(
   "/getUserItemStock",
   tokenVerification(["Store", "Production"]),
-  storekeeperController.getUserItemStock
+  storekeeperController.getUserItemStock,
 );
 
 router.get(
   "/getUserItemStockDetails",
   tokenVerification(["Store"]),
-  storekeeperController.getUserItemStockDetails
+  storekeeperController.getUserItemStockDetails,
 );
 
 router.post(
   "/updateStock",
   tokenVerification(["Store"]),
   uploadHandler,
-  storekeeperController.updateStock
+  storekeeperController.updateStock,
 );
 
 router.post(
   "/updateStock2",
   tokenVerification(["Store"]),
   uploadHandler,
-  storekeeperController.updateStock2
+  storekeeperController.updateStock2,
 );
 
 router.get(
   "/showProcessData",
   tokenVerification(["Store", "Production", "Admin"]),
-  storekeeperController.showProcessData
+  storekeeperController.showProcessData,
 );
 
 router.get(
   "/showProcessData2",
   tokenVerification(["Store"]),
-  storekeeperController.showProcessData2
+  storekeeperController.showProcessData2,
 );
 
 router.get(
   "/getRawMaterialList",
   tokenVerification(["Store", "Purchase"]),
-  storekeeperController.getRawMaterialList
+  storekeeperController.getRawMaterialList,
 );
 
 router.get(
   "/getWarehouseRawMaterialList",
   tokenVerification(["Store"]),
-  storekeeperController.getWarehouseRawMaterialList
+  storekeeperController.getWarehouseRawMaterialList,
 );
 
 router.get(
   "/getStockMovementHistory",
   tokenVerification(["Store"]),
-  storekeeperController.getStockMovementHistory
+  storekeeperController.getStockMovementHistory,
 );
 
 router.get(
   "/getStockMovementHistory2",
   tokenVerification(["Store"]),
-  storekeeperController.getStockMovementHistory2
+  storekeeperController.getStockMovementHistory2,
 );
 
 router.put(
   "/markRawMaterialUsedOrNotUsed",
   tokenVerification(["Store", "Purchase"]),
-  storekeeperController.markRawMaterialUsedOrNotUsed
+  storekeeperController.markRawMaterialUsedOrNotUsed,
 );
 
 router.put(
   "/markSystemItemUsedOrNotUsed",
   tokenVerification(["Purchase", "Store"]),
-  storekeeperController.markSystemItemUsedOrNotUsed
+  storekeeperController.markSystemItemUsedOrNotUsed,
 );
 
 router.get(
   "/getPendingPOsForReceiving",
   tokenVerification(["Store"]),
-  storekeeperController.getPendingPOsForReceiving
+  storekeeperController.getPendingPOsForReceiving,
 );
 
 router.post(
   "/purchaseOrder/receive",
   tokenVerification(["Store"]),
   uploadPurchaseOrderBill,
-  storekeeperController.purchaseOrderReceivingBill
+  storekeeperController.purchaseOrderReceivingBill,
 );
 
 // router.post(
@@ -139,25 +139,31 @@ router.post(
 router.post(
   "/directItemIssue",
   tokenVerification(["Store"]),
-  storekeeperController.newDirectItemIssue
+  storekeeperController.newDirectItemIssue,
 );
 
 router.get(
   "/directItemIssue/history",
   tokenVerification(["Store", "Production"]),
-  storekeeperController.getDirectItemIssueHistory
+  storekeeperController.getDirectItemIssueHistory,
 );
 
 router.get(
   "/returnMaterial/outstanding",
   tokenVerification(["Store"]),
-  storekeeperController.getOutstandingReturnableMaterials
+  storekeeperController.getOutstandingReturnableMaterials,
 );
 
 router.post(
   "/returnMaterial",
   tokenVerification(["Store"]),
-  storekeeperController.returnMaterial
+  storekeeperController.returnMaterial,
+);
+
+router.post(
+  "/addItemContainerStock",
+  tokenVerification(["Store"]),
+  storekeeperController.addItemContainerStock,
 );
 
 module.exports = router;
