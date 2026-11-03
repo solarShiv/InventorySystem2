@@ -37,7 +37,7 @@ const Item = require("../../models/serviceInventoryModels/itemSchema");
 const DispatchSerialNumbers = require("../../models/systemInventoryModels/dispatchedSerialNumbers");
 const SystemOrder = require("../../models/systemInventoryModels/systemOrderSchema");
 const BOM = require("../../models/systemInventoryModels/bomModelSchema");
-
+const apiRequest = require("../../util/apiRequest");
 //****************** Admin Access ******************//
 
 module.exports.addWarehouse = async (req, res) => {
@@ -112,7 +112,7 @@ module.exports.addWarehouse = async (req, res) => {
           prisma.warehouseStock.update({
             where: { id: stock.id },
             data: { isUsed: rm.isUsed },
-          })
+          }),
         );
       }
     }
@@ -141,7 +141,7 @@ module.exports.addWarehouse = async (req, res) => {
           quantity: 0,
           createdBy,
         })),
-        { ordered: false }
+        { ordered: false },
       );
     }
 
@@ -217,7 +217,7 @@ module.exports.viewWarehousePersons = async (req, res) => {
 module.exports.viewServicePersons = async (req, res) => {
   try {
     const allServicePersons = await ServicePerson.find().select(
-      "-password -role -createdAt -refreshToken -__v"
+      "-password -role -createdAt -refreshToken -__v",
     );
     if (!allServicePersons) {
       return res.status(404).json({
@@ -277,17 +277,19 @@ module.exports.deactivateServicePerson = async (req, res) => {
     }
 
     const servicePerson = await ServicePerson.findById(id);
-    if(!servicePerson){
+    if (!servicePerson) {
       return res.status(400).json({
-        success:false,
-        message:"Please enter the valid Id"
-      })
+        success: false,
+        message: "Please enter the valid Id",
+      });
     }
     servicePerson.isActive = status;
     await servicePerson.save();
     return res.status(200).json({
       success: true,
-      message: status ? "Service Person Activated Successfully" : "Service Person Deactivated Successfully",
+      message: status
+        ? "Service Person Activated Successfully"
+        : "Service Person Deactivated Successfully",
     });
   } catch (error) {
     return res.status(500).json({
@@ -435,7 +437,7 @@ module.exports.addWarehouseItems = async (req, res) => {
 
       for (const newItem of items) {
         const existingItem = warehouseItemsRecord.items.find(
-          (item) => item.itemName === newItem.itemName
+          (item) => item.itemName === newItem.itemName,
         );
 
         if (!existingItem) {
@@ -494,7 +496,7 @@ module.exports.addWarehouseItemsStock = async (req, res) => {
 
       const existingItem = warehouseItemsRecord.items.find(
         (item) =>
-          item.itemName.toLowerCase().trim() === itemName.toLowerCase().trim()
+          item.itemName.toLowerCase().trim() === itemName.toLowerCase().trim(),
       );
 
       if (!existingItem) {
@@ -665,7 +667,7 @@ module.exports.repairItemData = async (req, res) => {
     const warehouseName = warehouseItemsRecord.warehouse.warehouseName;
 
     const warehouseItem = warehouseItemsRecord.items.find(
-      (item) => item.itemName === itemName
+      (item) => item.itemName === itemName,
     );
     if (!warehouseItem) {
       return res.status(404).json({
@@ -803,7 +805,7 @@ module.exports.rejectItemData = async (req, res) => {
     const warehouseName = warehouseItemsRecord.warehouse.warehouseName;
 
     const warehouseItem = warehouseItemsRecord.items.find(
-      (item) => item.itemName === itemName
+      (item) => item.itemName === itemName,
     );
     if (!warehouseItem) {
       return res.status(404).json({
@@ -1395,7 +1397,7 @@ module.exports.showItemComponents = async (req, res) => {
         },
       })
       .select(
-        "-systemId -systemItemId -_id -__v -createdAt -updatedAt -createdBy -updatedBy"
+        "-systemId -systemItemId -_id -__v -createdAt -updatedAt -createdBy -updatedBy",
       )
       .lean();
     if (!itemComponentData.length) {
@@ -1431,7 +1433,7 @@ module.exports.showInstallationInventoryItems = async (req, res) => {
         },
       })
       .select(
-        "-_id -warehouseId -createdAt -updatedAt -createdBy -updatedBy -__v"
+        "-_id -warehouseId -createdAt -updatedAt -createdBy -updatedBy -__v",
       )
       .lean();
     return res.status(200).json({
@@ -1526,7 +1528,7 @@ module.exports.showItemsWithStockStatus = async (req, res) => {
       const id = subItemId._id.toString();
       overallRequiredQtyMap.set(
         id,
-        (overallRequiredQtyMap.get(id) || 0) + quantity
+        (overallRequiredQtyMap.get(id) || 0) + quantity,
       );
       overallItemIds.add(id);
     });
@@ -1575,7 +1577,7 @@ module.exports.showItemsWithStockStatus = async (req, res) => {
 
     for (const pumpHead of uniquePumpHeads) {
       const pumpsForHead = pumps.filter(
-        (p) => p.systemItemId.pumpHead === pumpHead
+        (p) => p.systemItemId.pumpHead === pumpHead,
       );
 
       let requiredQtyMap = new Map();
@@ -1589,8 +1591,8 @@ module.exports.showItemsWithStockStatus = async (req, res) => {
 
       const relevantSubItems = subItems.filter((sub) =>
         pumpsForHead.some(
-          (p) => p.systemItemId._id.toString() === sub.systemItemId.toString()
-        )
+          (p) => p.systemItemId._id.toString() === sub.systemItemId.toString(),
+        ),
       );
 
       relevantSubItems.forEach(({ subItemId, quantity }) => {
@@ -1829,12 +1831,14 @@ module.exports.getClampData = async (req, res) => {
 
     const systemItemMap = await SystemItemMap.find({ systemId }).populate(
       "systemItemId",
-      "_id itemName"
+      "_id itemName",
     );
 
     const clampData = systemItemMap
       .filter((item) =>
-        item.systemItemId?.itemName?.toLowerCase().includes("submersible clamp")
+        item.systemItemId?.itemName
+          ?.toLowerCase()
+          .includes("submersible clamp"),
       )
       .map((item) => ({
         _id: item.systemItemId._id,
@@ -1938,8 +1942,8 @@ module.exports.addNewInstallationData = async (req, res) => {
       const system = dispatchedSystems[i];
       const clampId =
         system.submersibleClampId &&
-          system.submersibleClampId !== "" &&
-          system.submersibleClampId !== "null"
+        system.submersibleClampId !== "" &&
+        system.submersibleClampId !== "null"
           ? system.submersibleClampId
           : null;
       const billPhotoFile = billPhotosMap[i];
@@ -1951,17 +1955,17 @@ module.exports.addNewInstallationData = async (req, res) => {
 
       if (existingActivity)
         throw new Error(
-          `Farmer ${system.farmerSaralId} system already dispatched`
+          `Farmer ${system.farmerSaralId} system already dispatched`,
         );
 
       let empData = await ServicePerson.findById(system.installerId).session(
-        session
+        session,
       );
       let refType = "ServicePerson";
 
       if (!empData) {
         empData = await SurveyPerson.findById(system.installerId).session(
-          session
+          session,
         );
         if (!empData) throw new Error("Installer not found");
         refType = "SurveyPerson";
@@ -1974,7 +1978,7 @@ module.exports.addNewInstallationData = async (req, res) => {
         .session(session);
       if (!systemItems.length)
         throw new Error(
-          `No system items found for systemId: ${system.systemId}`
+          `No system items found for systemId: ${system.systemId}`,
         );
 
       const filteredSystemItems = systemItems.filter((item) => {
@@ -1989,7 +1993,7 @@ module.exports.addNewInstallationData = async (req, res) => {
       });
 
       const selectedPump = systemItems.find(
-        (item) => item.systemItemId._id.toString() === system.pumpId.toString()
+        (item) => item.systemItemId._id.toString() === system.pumpId.toString(),
       );
       if (!selectedPump)
         throw new Error(`Pump with ID ${system.pumpId} not found`);
@@ -2020,7 +2024,7 @@ module.exports.addNewInstallationData = async (req, res) => {
       // ✅ Controller add only once
       if (system.controllerId) {
         const controllerItem = await SystemItem.findById(
-          system.controllerId
+          system.controllerId,
         ).session(session);
         if (!controllerItem) throw new Error("Controller not found");
         itemsList.push({ systemItemId: controllerItem._id, quantity: 1 });
@@ -2034,10 +2038,10 @@ module.exports.addNewInstallationData = async (req, res) => {
           id,
           uniqueItemsMap.has(id)
             ? {
-              ...item,
-              quantity: uniqueItemsMap.get(id).quantity + item.quantity,
-            }
-            : { ...item }
+                ...item,
+                quantity: uniqueItemsMap.get(id).quantity + item.quantity,
+              }
+            : { ...item },
         );
       }
 
@@ -2081,7 +2085,7 @@ module.exports.addNewInstallationData = async (req, res) => {
       // ✅ Remove clamp if clampId NOT provided
       if (!clampId && clampItemId) {
         finalItemsList = finalItemsList.filter(
-          (item) => item.systemItemId.toString() !== clampItemId
+          (item) => item.systemItemId.toString() !== clampItemId,
         );
       }
 
@@ -2100,7 +2104,7 @@ module.exports.addNewInstallationData = async (req, res) => {
           throw new Error(`Item not found in inventory: ${item.systemItemId}`);
         if (stockDoc.quantity < item.quantity)
           throw new Error(
-            `Insufficient stock for item ${stockDoc.systemItemId.itemName}`
+            `Insufficient stock for item ${stockDoc.systemItemId.itemName}`,
           );
 
         stockDoc.quantity =
@@ -2161,12 +2165,12 @@ module.exports.addNewInstallationData = async (req, res) => {
         {
           new: true,
           session,
-        }
+        },
       );
 
       if (!updatedOrder) {
         throw new Error(
-          `SystemOrder not found for systemId ${system.systemId} and pumpId ${system.pumpId}`
+          `SystemOrder not found for systemId ${system.systemId} and pumpId ${system.pumpId}`,
         );
       }
     }
@@ -2185,7 +2189,7 @@ module.exports.addNewInstallationData = async (req, res) => {
 
     if (req.files) {
       req.files.forEach((file) => {
-        fs.unlink(file.path, () => { });
+        fs.unlink(file.path, () => {});
       });
     }
 
@@ -2201,9 +2205,8 @@ module.exports.addNewInstallationData2 = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { dispatchedSystem, driverName, driverContact, vehicleNumber } =
-      req.body;
-    console.log(req.body);
+    const { dispatchedSystem, driverName, driverContact, vehicleNumber, farmerSaralId, simNumber } =
+      req.body || {};
     const dispatchedSystems =
       typeof dispatchedSystem === "string"
         ? JSON.parse(dispatchedSystem)
@@ -2280,8 +2283,8 @@ module.exports.addNewInstallationData2 = async (req, res) => {
       const system = dispatchedSystems[i];
       const clampId =
         system.submersibleClampId &&
-          system.submersibleClampId !== "" &&
-          system.submersibleClampId !== "null"
+        system.submersibleClampId !== "" &&
+        system.submersibleClampId !== "null"
           ? system.submersibleClampId
           : null;
       const billPhotoFile = billPhotosMap[i];
@@ -2293,7 +2296,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
 
       if (existingActivity)
         throw new Error(
-          `Farmer ${system.farmerSaralId} system already dispatched`
+          `Farmer ${system.farmerSaralId} system already dispatched`,
         );
 
       // let empData = await ServicePerson.findById(system.installerId).session(
@@ -2316,7 +2319,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
         .session(session);
       if (!systemItems.length)
         throw new Error(
-          `No system items found for systemId: ${system.systemId}`
+          `No system items found for systemId: ${system.systemId}`,
         );
 
       const filteredSystemItems = systemItems.filter((item) => {
@@ -2331,7 +2334,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
       });
 
       const selectedPump = systemItems.find(
-        (item) => item.systemItemId._id.toString() === system.pumpId.toString()
+        (item) => item.systemItemId._id.toString() === system.pumpId.toString(),
       );
       if (!selectedPump)
         throw new Error(`Pump with ID ${system.pumpId} not found`);
@@ -2362,7 +2365,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
       // ✅ Controller add only once
       if (system.controllerId) {
         const controllerItem = await SystemItem.findById(
-          system.controllerId
+          system.controllerId,
         ).session(session);
         if (!controllerItem) throw new Error("Controller not found");
         itemsList.push({ systemItemId: controllerItem._id, quantity: 1 });
@@ -2376,10 +2379,10 @@ module.exports.addNewInstallationData2 = async (req, res) => {
           id,
           uniqueItemsMap.has(id)
             ? {
-              ...item,
-              quantity: uniqueItemsMap.get(id).quantity + item.quantity,
-            }
-            : { ...item }
+                ...item,
+                quantity: uniqueItemsMap.get(id).quantity + item.quantity,
+              }
+            : { ...item },
         );
       }
 
@@ -2423,7 +2426,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
       // ✅ Remove clamp if clampId NOT provided
       if (!clampId && clampItemId) {
         finalItemsList = finalItemsList.filter(
-          (item) => item.systemItemId.toString() !== clampItemId
+          (item) => item.systemItemId.toString() !== clampItemId,
         );
       }
 
@@ -2442,7 +2445,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
           throw new Error(`Item not found in inventory: ${item.systemItemId}`);
         if (stockDoc.quantity < item.quantity)
           throw new Error(
-            `Insufficient stock for item ${stockDoc.systemItemId.itemName}`
+            `Insufficient stock for item ${stockDoc.systemItemId.itemName}`,
           );
 
         stockDoc.quantity =
@@ -2503,22 +2506,36 @@ module.exports.addNewInstallationData2 = async (req, res) => {
         {
           new: true,
           session,
-        }
+        },
       );
 
       if (!updatedOrder) {
         throw new Error(
-          `SystemOrder not found for systemId ${system.systemId} and pumpId ${system.pumpId}`
+          `SystemOrder not found for systemId ${system.systemId} and pumpId ${system.pumpId}`,
         );
       }
     }
     await dispatchDetails.save({ session });
     await session.commitTransaction();
     session.endSession();
+        let simWarning = null;
+    if (farmerSaralId && simNumber) {
+      try {
+        await apiRequest(
+          `${process.env.SERVICE_URL}sim/check-sim-assign-saralId`,
+          "PUT",
+          { farmerSaralId, simNumber },
+        );
+      } catch (e) {
+        console.error("SIM assignment failed:", e);
+        simWarning = "Dispatched, but SIM assignment failed";
+      }
+    }
 
     return res.status(200).json({
       success: true,
       message: `${farmerActivities.length} systems dispatched successfully`,
+      ...(simWarning && { warning: simWarning }),
       data: { dispatchDetails },
     });
   } catch (error) {
@@ -2527,7 +2544,7 @@ module.exports.addNewInstallationData2 = async (req, res) => {
 
     if (req.files) {
       req.files.forEach((file) => {
-        fs.unlink(file.path, () => { });
+        fs.unlink(file.path, () => {});
       });
     }
 
@@ -2543,23 +2560,25 @@ module.exports.assignInstaller = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { farmerActivityId, farmerSaralId, installerId, updatedByEmp } = req.body;
+    const { farmerActivityId, farmerSaralId, installerId, updatedByEmp } =
+      req.body;
 
     if (!farmerActivityId || !farmerSaralId || !installerId || !updatedByEmp) {
       return res.status(400).json({
         success: false,
-        message: "Insufficient Data Provided."
+        message: "Insufficient Data Provided.",
       });
     }
 
-    const farmerActivity = await FarmerItemsActivity.findById(farmerActivityId).session(session);
+    const farmerActivity =
+      await FarmerItemsActivity.findById(farmerActivityId).session(session);
 
     if (!farmerActivity) {
       throw new Error("Farmer Activity For Installation Not Found.");
     }
 
     const installationAssignEmp = await InstallationAssignEmp.findOne({
-      farmerSaralId
+      farmerSaralId,
     }).session(session);
 
     if (!installationAssignEmp) {
@@ -2603,21 +2622,18 @@ module.exports.assignInstaller = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Installer assigned to farmer with beneficiary id: ${farmerSaralId}`
+      message: `Installer assigned to farmer with beneficiary id: ${farmerSaralId}`,
     });
-
   } catch (error) {
-
     await session.abortTransaction();
     session.endSession();
 
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal Server Error"
+      message: error.message || "Internal Server Error",
     });
   }
 };
-
 
 module.exports.getDispatchHistory = async (req, res) => {
   try {
@@ -2845,7 +2861,6 @@ module.exports.getDispatchHistory = async (req, res) => {
   }
 };
 
-
 module.exports.showInstallationDataToWarehouse = async (req, res) => {
   try {
     const warehouseId = req.user.warehouse;
@@ -2889,7 +2904,7 @@ module.exports.showInstallationDataToWarehouse = async (req, res) => {
       showData.map(async (data) => {
         try {
           const response = await axios.get(
-            `http://88.222.214.93:8001/farmer/showFarmerAccordingToSaralId?saralId=${data.farmerSaralId}`
+            `http://88.222.214.93:8001/farmer/showFarmerAccordingToSaralId?saralId=${data.farmerSaralId}`,
           );
 
           return {
@@ -2900,14 +2915,14 @@ module.exports.showInstallationDataToWarehouse = async (req, res) => {
           console.error(
             "Failed to fetch farmer details for SaralId:",
             data.farmerSaralId,
-            err.message
+            err.message,
           );
           return {
             ...data.toObject(),
             farmerDetails: null,
           };
         }
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -2970,12 +2985,12 @@ module.exports.itemComingToWarehouse = async (req, res) => {
       const existingItem = existingInventoryItems.find(
         (inv) =>
           inv.systemItemId.itemName.toLowerCase().trim() ===
-          systemItemData.itemName.toLowerCase().trim()
+          systemItemData.itemName.toLowerCase().trim(),
       );
 
       if (!existingItem) {
         throw new Error(
-          `SubItem "${systemItemData.itemName}" not found in warehouse inventory`
+          `SubItem "${systemItemData.itemName}" not found in warehouse inventory`,
         );
       }
 
@@ -3120,13 +3135,13 @@ module.exports.warehouse2WarehouseTransaction = async (req, res) => {
 
         if (!existingItem) {
           throw new Error(
-            `Item "${systemItemData.itemName}" not found in warehouse inventory`
+            `Item "${systemItemData.itemName}" not found in warehouse inventory`,
           );
         }
 
         if (existingItem.quantity < quantity || existingItem.quantity === 0) {
           throw new Error(
-            `Insufficient stock for item "${systemItemData.itemName}"`
+            `Insufficient stock for item "${systemItemData.itemName}"`,
           );
         }
 
@@ -3510,14 +3525,14 @@ module.exports.allServiceSurveyPersons = async (req, res) => {
       role: { $in: ["serviceperson", "fieldsales", "filing"] },
     })
       .select(
-        "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+        "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
       )
       .sort({ state: 1, district: 1 });
 
     // Fetch survey persons
     const surveyPersons = await SurveyPerson.find(filter)
       .select(
-        "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+        "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
       )
       .sort({ state: 1, district: 1 });
 
@@ -3571,12 +3586,12 @@ module.exports.fieldWorkerList = async (req, res) => {
     const [servicePersons, surveyPersons] = await Promise.all([
       ServicePerson.find(filter)
         .select(
-          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
         )
         .sort({ state: 1, district: 1 }),
       SurveyPerson.find(filter)
         .select(
-          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
         )
         .sort({ state: 1, district: 1 }),
     ]);
@@ -3629,12 +3644,12 @@ module.exports.servicePersonForMaharashtra = async (req, res) => {
     const [servicePersons, surveyPersons] = await Promise.all([
       ServicePerson.find(filter)
         .select(
-          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
         )
         .sort({ state: 1, district: 1 }),
       SurveyPerson.find(filter)
         .select(
-          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v"
+          "-password -createdAt -createdBy -updatedAt -updatedBy -refreshToken -isActive -__v",
         )
         .sort({ state: 1, district: 1 }),
     ]);
@@ -3677,11 +3692,11 @@ module.exports.filterServicePersonById = async (req, res) => {
   try {
     const { id } = req.query;
     let employeeName = await ServicePerson.findById({ _id: id }).select(
-      "-email -password -role -createdAt -refreshToken -__v -createdAt -updatedAt -createdBy -updatedBy"
+      "-email -password -role -createdAt -refreshToken -__v -createdAt -updatedAt -createdBy -updatedBy",
     );
     if (!employeeName) {
       employeeName = await SurveyPerson.findById({ _id: id }).select(
-        "-email -password -role -createdAt -refreshToken -__v -createdAt -updatedAt -createdBy -updatedBy"
+        "-email -password -role -createdAt -refreshToken -__v -createdAt -updatedAt -createdBy -updatedBy",
       );
     }
     return res.status(200).json({
@@ -3865,7 +3880,7 @@ module.exports.showIncomingItemsFromFarmer = async (req, res) => {
 module.exports.showAllSystemInstallation = async (req, res) => {
   try {
     const allSystemInstallations = await NewSystemInstallation.find().select(
-      "-referenceType -createdBy -__v"
+      "-referenceType -createdBy -__v",
     );
     return res.status(200).json({
       success: true,
@@ -3909,7 +3924,7 @@ module.exports.deductFromDefectiveOfItems = async (req, res) => {
 
     // Check if itemName exists in the warehouse items
     const itemIndex = warehouseItemsData.items.findIndex(
-      (item) => item.itemName === itemName
+      (item) => item.itemName === itemName,
     );
 
     if (itemIndex === -1) {
@@ -4039,7 +4054,7 @@ module.exports.addOutgoingItemsData = async (req, res) => {
 
       for (const item of farmer.items) {
         const existingItem = warehouseItemsData.items.find(
-          (i) => i.itemName === item.itemName
+          (i) => i.itemName === item.itemName,
         );
 
         if (!existingItem) {
@@ -4278,7 +4293,7 @@ module.exports.addReceivingItemsData = async (req, res) => {
     // 🔹 Step 3: Validate each farmer and item exist in outgoing
     for (const farmer of farmers) {
       const outgoingFarmer = outgoing.farmers.find(
-        (f) => f.farmerSaralId === farmer.farmerSaralId
+        (f) => f.farmerSaralId === farmer.farmerSaralId,
       );
 
       if (!outgoingFarmer) {
@@ -4292,7 +4307,7 @@ module.exports.addReceivingItemsData = async (req, res) => {
 
       for (const recvItem of farmer.receivedItems) {
         const outItem = outgoingFarmer.items.find(
-          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase()
+          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase(),
         );
 
         if (!outItem) {
@@ -4323,7 +4338,7 @@ module.exports.addReceivingItemsData = async (req, res) => {
     for (const farmer of farmers) {
       for (const recvItem of farmer.receivedItems) {
         const itemInWarehouse = warehouse.items.find(
-          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase()
+          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase(),
         );
 
         if (!itemInWarehouse) {
@@ -4369,19 +4384,19 @@ module.exports.addReceivingItemsData = async (req, res) => {
     // Validate that new items don’t exceed remaining quantity
     for (const farmer of farmers) {
       const outgoingFarmer = outgoing.farmers.find(
-        (f) => f.farmerSaralId === farmer.farmerSaralId
+        (f) => f.farmerSaralId === farmer.farmerSaralId,
       );
       if (!outgoingFarmer) continue;
 
       for (const recvItem of farmer.receivedItems) {
         const outItem = outgoingFarmer.items.find(
-          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase()
+          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase(),
         );
         if (!outItem) continue;
 
         const alreadyReceived =
           totalReceivedMap[farmer.farmerSaralId][
-          recvItem.itemName.toLowerCase()
+            recvItem.itemName.toLowerCase()
           ] || 0;
         const remainingQty = outItem.quantity - alreadyReceived;
 
@@ -4420,7 +4435,7 @@ module.exports.addReceivingItemsData = async (req, res) => {
     for (const farmer of farmers) {
       for (const recvItem of farmer.receivedItems) {
         const warehouseItem = warehouse.items.find(
-          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase()
+          (i) => i.itemName.toLowerCase() === recvItem.itemName.toLowerCase(),
         );
         warehouseItem.quantity += recvItem.quantity;
       }
@@ -4429,7 +4444,7 @@ module.exports.addReceivingItemsData = async (req, res) => {
 
     // 🔹 Step 8: Recalculate total received quantities and outgoing status
     const allReceivings = await ReceivingItems.find({ outgoingId }).session(
-      session
+      session,
     );
 
     const receivedMap = {};
@@ -4566,7 +4581,7 @@ module.exports.receivingDataGroupedByOutgoing = async (req, res) => {
             }
           });
           groupedData[outgoingId].summary.totalFarmers = Object.keys(
-            groupedData[outgoingId].farmers
+            groupedData[outgoingId].farmers,
           ).length;
         }
       }
@@ -4599,7 +4614,7 @@ module.exports.receivingDataGroupedByOutgoing = async (req, res) => {
               itemData.receivedQuantity += recvItem.quantity;
               itemData.pendingQuantity = Math.max(
                 itemData.quantity - itemData.receivedQuantity,
-                0
+                0,
               );
             }
           });
@@ -4719,6 +4734,8 @@ module.exports.showWarehouseItemsData = async (req, res) => {
     });
   }
 };
+
+// This is the one.. yahi hai.. ok thank you koi dikkat hoga to fir call karte hain
 
 module.exports.uploadSystemSubItemsFromExcel = async (req, res) => {
   try {
@@ -4897,7 +4914,7 @@ module.exports.uploadSystemItemsFromExcel = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
+// add sub item in the bom
 module.exports.attachItemComponentMapByExcel = async (req, res) => {
   try {
     if (!req.file) {
@@ -5181,7 +5198,7 @@ module.exports.declinePickupItemsTransaction = async (req, res) => {
         declinedBy: req.user?.name,
         declineDate: new Date(),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!existingData) {
@@ -5270,7 +5287,7 @@ module.exports.getSerialNumber = async (req, res) => {
     // Fetch all serial numbers for the given product type
     const serialNumbers = await SerialNumber.find(
       { productType },
-      { _id: 0, serialNumber: 1, state: 1, isUsed: 1 }
+      { _id: 0, serialNumber: 1, state: 1, isUsed: 1 },
     ).lean();
 
     if (!serialNumbers || serialNumbers.length === 0) {
@@ -5358,7 +5375,7 @@ module.exports.checkSerialNumber = async (req, res) => {
     // 🔹 CASE 1: Multiple Panel Numbers
     if (Array.isArray(panelNumberList) && panelNumberList.length > 0) {
       const trimmedPanelNumbers = panelNumberList.map((num) =>
-        String(num).trim().toUpperCase()
+        String(num).trim().toUpperCase(),
       );
 
       // Find in SerialNumber collection
@@ -5400,9 +5417,9 @@ module.exports.checkSerialNumber = async (req, res) => {
           serials
             .filter(
               (s) =>
-                !s.isUsed && !farmerActivityNumbers.includes(s.serialNumber)
+                !s.isUsed && !farmerActivityNumbers.includes(s.serialNumber),
             )
-            .map((s) => s.serialNumber)
+            .map((s) => s.serialNumber),
         ),
       ];
 
@@ -5724,7 +5741,7 @@ module.exports.updateSerialNumbersAsUsed = async (req, res) => {
 
       const filePath = path.join(
         __dirname,
-        "../../uploads/failed_updates.xlsx"
+        "../../uploads/failed_updates.xlsx",
       );
       XLSX.writeFile(newWB, filePath);
 
@@ -5785,7 +5802,7 @@ module.exports.updateIncomingPickupItemSerial = async (req, res) => {
     const existingSerial = await PickupItem.findOne(
       { updatedSerialNumber: normalizedSerial, incoming: true },
       null,
-      { session }
+      { session },
     );
     if (existingSerial) {
       await session.abortTransaction();
@@ -5806,7 +5823,7 @@ module.exports.updateIncomingPickupItemSerial = async (req, res) => {
           updatedAt: new Date(),
         },
       },
-      { new: true, session }
+      { new: true, session },
     );
     console.log(updatedPickupItem);
     if (!updatedPickupItem) {
@@ -5894,7 +5911,7 @@ module.exports.updateOutogingItemFarmerDetails = async (req, res) => {
     const updatedPickupItem = await PickupItem.findByIdAndUpdate(
       transactionId,
       { $set: updateFields },
-      { new: true, session }
+      { new: true, session },
     );
 
     if (!updatedPickupItem) {
@@ -5947,7 +5964,7 @@ module.exports.addMotorNumbersFromExcel = async (req, res) => {
       // Skip if motorNumber is empty
       if (!motorNumber || motorNumber.trim() === "") {
         console.log(
-          `⏭ Skipping row for farmerSaralId ${farmerSaralId} (empty motorNumber)`
+          `⏭ Skipping row for farmerSaralId ${farmerSaralId} (empty motorNumber)`,
         );
         continue;
       }
@@ -5958,16 +5975,16 @@ module.exports.addMotorNumbersFromExcel = async (req, res) => {
           farmerSaralId,
           $or: [{ motorNumber: { $exists: false } }, { motorNumber: "" }],
         },
-        { $set: { motorNumber: motorNumber.toUpperCase().trim() } }
+        { $set: { motorNumber: motorNumber.toUpperCase().trim() } },
       );
 
       if (updated.modifiedCount > 0) {
         console.log(
-          `✅ Updated motorNumber for farmerSaralId ${farmerSaralId}`
+          `✅ Updated motorNumber for farmerSaralId ${farmerSaralId}`,
         );
       } else {
         console.log(
-          `⚠️ Skipped farmerSaralId ${farmerSaralId} (already has motorNumber or not found)`
+          `⚠️ Skipped farmerSaralId ${farmerSaralId} (already has motorNumber or not found)`,
         );
       }
     }
@@ -5983,7 +6000,7 @@ module.exports.exportMotorNumbersExcel = async (req, res) => {
     // Fetch only motorNumbers where state = Maharashtra
     const records = await FarmerItemsActivity.find(
       { state: "Maharashtra" },
-      { motorNumber: 1, _id: 0 }
+      { motorNumber: 1, _id: 0 },
     ).lean();
 
     if (!records.length) {
@@ -6010,11 +6027,11 @@ module.exports.exportMotorNumbersExcel = async (req, res) => {
     // Set response headers for file download
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=motorNumbers_maharashtra.xlsx"
+      "attachment; filename=motorNumbers_maharashtra.xlsx",
     );
 
     // Write to response
@@ -6435,7 +6452,7 @@ module.exports.importDispatchedSystemExcelData = async (req, res) => {
         // if (existingActivity) {
         //   // Update existing FarmerActivity with new serials
         //   await FarmerItemsActivity.updateOne(
-        //     { _id: existingActivity._id },  
+        //     { _id: existingActivity._id },
         //     {
         //       $set: {
         //         panelNumbers,
@@ -6450,9 +6467,7 @@ module.exports.importDispatchedSystemExcelData = async (req, res) => {
         // --- Prepare new documents ---
         farmerActivityDocs.push({
           referenceType: "ServicePerson",
-          warehouseId: new mongoose.Types.ObjectId(
-            "690835908a80011de511b648"
-          ),
+          warehouseId: new mongoose.Types.ObjectId("690835908a80011de511b648"),
           farmerSaralId: row.farmerSaralId,
           empId: empData._id,
           systemId: system._id,
@@ -6474,9 +6489,7 @@ module.exports.importDispatchedSystemExcelData = async (req, res) => {
 
         employeeAssignedDocs.push({
           referenceType: "ServicePerson",
-          warehouseId: new mongoose.Types.ObjectId(
-            "690835908a80011de511b648"
-          ),
+          warehouseId: new mongoose.Types.ObjectId("690835908a80011de511b648"),
           empId: empData._id,
           farmerSaralId: row.farmerSaralId,
           systemId: system._id,
@@ -6528,11 +6541,11 @@ module.exports.importDispatchedSystemExcelData = async (req, res) => {
 
       res.setHeader(
         "Content-Disposition",
-        "attachment; filename=Failed_Rows.xlsx"
+        "attachment; filename=Failed_Rows.xlsx",
       );
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       return res.send(excelBuffer);
     }
@@ -6706,7 +6719,7 @@ module.exports.addReplacementDispatch = async (req, res) => {
       await replacementActivity.save({ session });
 
       dispatchDetails.dispatchedReplacementActivities.push(
-        replacementActivity._id
+        replacementActivity._id,
       );
     }
 
@@ -6735,7 +6748,7 @@ module.exports.addReplacementDispatch = async (req, res) => {
     session.endSession();
 
     if (req.file) {
-      fs.unlink(req.file.path, () => { });
+      fs.unlink(req.file.path, () => {});
     }
 
     return res.status(500).json({
@@ -6870,7 +6883,7 @@ module.exports.addReplacementDispatch2 = async (req, res) => {
       await replacementActivity.save({ session });
 
       dispatchDetails.dispatchedReplacementActivities.push(
-        replacementActivity._id
+        replacementActivity._id,
       );
     }
 
@@ -6899,7 +6912,7 @@ module.exports.addReplacementDispatch2 = async (req, res) => {
     session.endSession();
 
     if (req.file) {
-      fs.unlink(req.file.path, () => { });
+      fs.unlink(req.file.path, () => {});
     }
 
     return res.status(500).json({
@@ -6911,34 +6924,34 @@ module.exports.addReplacementDispatch2 = async (req, res) => {
 
 module.exports.getAllReplacementDispatches = async (req, res) => {
   try {
-    const dispatches = await ReplacementDispatchDetails
-      .find()
+    const dispatches = await ReplacementDispatchDetails.find()
       .sort({ createdAt: -1 })
       .populate("warehouseId", "warehouseName")
       .populate("dispatchedBy", "name")
       .populate({
         path: "dispatchedReplacementActivities",
-        select: "farmerSaralId movementType itemsList sendingDate receivingDate",
+        select:
+          "farmerSaralId movementType itemsList sendingDate receivingDate",
         populate: {
           path: "itemsList.systemItemId",
-          select: "itemName"
-        }
+          select: "itemName",
+        },
       })
       .lean();
 
-    const dispatchIds = dispatches.map(d => d._id);
+    const dispatchIds = dispatches.map((d) => d._id);
 
     const billPhotos = await ReplacementDispatchBillPhoto.find({
-      replacementDispatchId: { $in: dispatchIds }
+      replacementDispatchId: { $in: dispatchIds },
     }).lean();
 
     const billMap = {};
-    billPhotos.forEach(photo => {
+    billPhotos.forEach((photo) => {
       billMap[photo.replacementDispatchId.toString()] = photo.billPhoto;
     });
 
     // 🔥 FORMAT DATA HERE
-    const formattedData = dispatches.map(dispatch => ({
+    const formattedData = dispatches.map((dispatch) => ({
       dispatchId: dispatch._id,
       driverName: dispatch.driverName,
       driverContact: dispatch.driverContact,
@@ -6949,30 +6962,31 @@ module.exports.getAllReplacementDispatches = async (req, res) => {
       billPhoto: billMap[dispatch._id.toString()] || null,
       createdAt: dispatch.createdAt,
 
-      replacementActivities: dispatch.dispatchedReplacementActivities.map(activity => ({
-        farmerSaralId: activity.farmerSaralId,
-        movementType: activity.movementType,
-        sendingDate: activity.sendingDate,
-        receivingDate: activity.receivingDate,
+      replacementActivities: dispatch.dispatchedReplacementActivities.map(
+        (activity) => ({
+          farmerSaralId: activity.farmerSaralId,
+          movementType: activity.movementType,
+          sendingDate: activity.sendingDate,
+          receivingDate: activity.receivingDate,
 
-        items: activity.itemsList.map(item => ({
-          itemName: item.systemItemId?.itemName || null,
-          quantity: item.quantity
-        }))
-      }))
+          items: activity.itemsList.map((item) => ({
+            itemName: item.systemItemId?.itemName || null,
+            quantity: item.quantity,
+          })),
+        }),
+      ),
     }));
 
     return res.status(200).json({
       success: true,
       count: formattedData.length,
-      data: formattedData
+      data: formattedData,
     });
-
   } catch (error) {
     console.error(error);
     return res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: "Internal Server Error",
     });
   }
 };
@@ -6982,14 +6996,8 @@ module.exports.createMaterialDispatchLog = async (req, res) => {
   session.startTransaction();
 
   try {
-    const {
-      movementType,
-      itemsList,
-      partyName,
-      address,
-      purpose,
-      remarks,
-    } = req.body;
+    const { movementType, itemsList, partyName, address, purpose, remarks } =
+      req.body;
 
     const items =
       typeof itemsList === "string" ? JSON.parse(itemsList) : itemsList;
@@ -7017,18 +7025,18 @@ module.exports.createMaterialDispatchLog = async (req, res) => {
       }
     }
 
-
     if (!partyName || !address || !remarks) {
       return res.status(400).json({
         success: false,
-        message: "partyName, address, remarks are required."
+        message: "partyName, address, remarks are required.",
       });
     }
 
     const warehousePersonId = req.user._id;
     const warehouseId = req.user.warehouse;
 
-    const warehouseData = await Warehouse.findById(warehouseId).session(session);
+    const warehouseData =
+      await Warehouse.findById(warehouseId).session(session);
     if (!warehouseData) throw new Error("Warehouse not found");
 
     const stateMap = {
@@ -7081,7 +7089,7 @@ module.exports.createMaterialDispatchLog = async (req, res) => {
           createdBy: warehousePersonId,
         },
       ],
-      { session }
+      { session },
     );
 
     await session.commitTransaction();
@@ -7119,7 +7127,7 @@ module.exports.getMaterialDispatchLogs = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const cleanData = logs.map(log => ({
+    const cleanData = logs.map((log) => ({
       id: log._id,
       warehouseName: log.warehouseId?.warehouseName || "",
       movementType: log.movementType,
@@ -7127,11 +7135,8 @@ module.exports.getMaterialDispatchLogs = async (req, res) => {
       partyName: log.partyName,
       address: log.address,
       remarks: log.remarks || "",
-      date:
-        log.movementType === "OUT"
-          ? log.sendingDate
-          : log.receivingDate,
-      items: log.itemsList.map(item => ({
+      date: log.movementType === "OUT" ? log.sendingDate : log.receivingDate,
+      items: log.itemsList.map((item) => ({
         itemName: item.systemItemId?.itemName || "",
         quantity: item.quantity,
       })),
@@ -7192,8 +7197,7 @@ module.exports.addDispatchSerialNumbers = async (req, res) => {
     if (duplicate) {
       return res.status(409).json({
         success: false,
-        message:
-          "One or more serial numbers already exist in another dispatch",
+        message: "One or more serial numbers already exist in another dispatch",
       });
     }
 
@@ -7231,7 +7235,8 @@ module.exports.getDispatchSerialNumbers = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate("createdBy", "name").select("-__v -updatedAt")
+      .populate("createdBy", "name")
+      .select("-__v -updatedAt")
       .lean();
 
     const total = await DispatchSerialNumbers.countDocuments();
@@ -7313,26 +7318,23 @@ module.exports.getPumpDataBySystem = async (req, res) => {
   }
 };
 
-
-
 // -------------
 
 module.exports.getAllDispatchHistory = async (req, res) => {
   try {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    let {pageNo=1,limit=50}=req.query;
+    let { pageNo = 1, limit = 50 } = req.query;
 
-    pageNo=Number(pageNo||50);
-    limit=Number(limit||50);
+    pageNo = Number(pageNo || 50);
+    limit = Number(limit || 50);
 
-    const skip=(pageNo-1)*limit;
+    const skip = (pageNo - 1) * limit;
 
     const totalRecord = await DispatchDetails.countDocuments();
     const totalPages = Math.ceil(totalRecord / limit);
 
     const history = await DispatchDetails.aggregate([
-     
       {
         $sort: {
           createdAt: -1,
@@ -7340,11 +7342,11 @@ module.exports.getAllDispatchHistory = async (req, res) => {
       },
 
       {
-        $skip:skip
+        $skip: skip,
       },
 
       {
-        $limit:limit
+        $limit: limit,
       },
 
       // ==========================================
@@ -7370,10 +7372,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
       {
         $addFields: {
           warehouseName: {
-            $arrayElemAt: [
-              "$warehouseInfo.warehouseName",
-              0,
-            ],
+            $arrayElemAt: ["$warehouseInfo.warehouseName", 0],
           },
         },
       },
@@ -7461,10 +7460,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
                           as: "s",
 
                           cond: {
-                            $eq: [
-                              "$$s._id",
-                              "$$fa.systemId",
-                            ],
+                            $eq: ["$$s._id", "$$fa.systemId"],
                           },
                         },
                       },
@@ -7520,8 +7516,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
 
                           cond: {
                             $regexMatch: {
-                              input:
-                                "$$item.systemItemId.itemName",
+                              input: "$$item.systemItemId.itemName",
 
                               regex: /pump/i,
                             },
@@ -7582,8 +7577,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
 
                           cond: {
                             $regexMatch: {
-                              input:
-                                "$$item.systemItemId.itemName",
+                              input: "$$item.systemItemId.itemName",
 
                               regex: /controller/i,
                             },
@@ -7614,10 +7608,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
                           as: "bp",
 
                           cond: {
-                            $eq: [
-                              "$$bp.farmerActivityId",
-                              "$$fa._id",
-                            ],
+                            $eq: ["$$bp.farmerActivityId", "$$fa._id"],
                           },
                         },
                       },
@@ -7625,10 +7616,7 @@ module.exports.getAllDispatchHistory = async (req, res) => {
                       as: "matched",
 
                       in: {
-                        $concat: [
-                          baseUrl,
-                          "$$matched.billPhoto",
-                        ],
+                        $concat: [baseUrl, "$$matched.billPhoto"],
                       },
                     },
                   },
@@ -7682,9 +7670,8 @@ module.exports.getAllDispatchHistory = async (req, res) => {
       message: "Dispatch history fetched successfully",
       data: history,
       totalRecord,
-      totalPages
+      totalPages,
     });
-
   } catch (er) {
     res.status(500).json({
       success: false,
@@ -7692,4 +7679,4 @@ module.exports.getAllDispatchHistory = async (req, res) => {
       error: er.message,
     });
   }
-}
+};
