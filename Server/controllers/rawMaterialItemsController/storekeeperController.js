@@ -875,7 +875,7 @@ const getUserItemStock = async (req, res) => {
      * FETCH RM NAMES ONCE
      * ====================== */
     const allRMIds = [...new Set([...issueRMIds, ...requestRMIds])];
-
+    // mysql
     const rawMaterials = await prisma.rawMaterial.findMany({
       where: { id: { in: allRMIds } },
       select: { id: true, name: true },
@@ -884,7 +884,11 @@ const getUserItemStock = async (req, res) => {
     const RM_LOOKUP = Object.fromEntries(
       rawMaterials.map((rm) => [rm.id, rm.name]),
     );
-
+    // mongoDB
+    const rawMaterialOnMongooDB = await SystemItem.find().lean();
+    const SI_LOOKUP = Object.fromEntries(
+      rawMaterialOnMongooDB.map((rm) => [rm._id.toString(), rm.itemName]),
+    )
     /* ======================
      * FORMAT ISSUES
      * ====================== */
@@ -892,7 +896,7 @@ const getUserItemStock = async (req, res) => {
       id: issue.id,
       items: safeParse(issue.rawMaterialIssued).map((rm) => ({
         rawMaterialId: rm.rawMaterialId,
-        rawMaterialName: RM_LOOKUP[rm.rawMaterialId] || "Unknown",
+        rawMaterialName: RM_LOOKUP[rm.rawMaterialId] || SI_LOOKUP[rm.rawMaterialId] || "Unknown",
         quantity: rm.quantity,
         unit: rm.unit,
       })),
