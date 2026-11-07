@@ -886,9 +886,11 @@ const getUserItemStock = async (req, res) => {
     );
     // mongoDB
     const rawMaterialOnMongooDB = await SystemItem.find().lean();
+    console.log("rawMaterialOnMongooDB :-", rawMaterialOnMongooDB[0]);
     const SI_LOOKUP = Object.fromEntries(
       rawMaterialOnMongooDB.map((rm) => [rm._id.toString(), rm.itemName]),
     )
+    console.log("SI_LOOKUP :-", SI_LOOKUP);
     /* ======================
      * FORMAT ISSUES
      * ====================== */
