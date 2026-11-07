@@ -17,7 +17,7 @@ const mergeContainerStock = (existing, incoming) => {
     existing && typeof existing === "object" && !Array.isArray(existing)
       ? { ...existing }
       : {};
- 
+
   for (const [container, qty] of Object.entries(incoming || {})) {
     result[container] = Number(result[container] || 0) + Number(qty);
   }
@@ -334,7 +334,7 @@ const getRawMaterialList = async (req, res) => {
 //     });
 //   }
 // };
- 
+
 // ============ Shiv IT ==========
 
 // Normalizes the JSON column to { containerName: number } and drops empty containers
@@ -889,8 +889,7 @@ const getUserItemStock = async (req, res) => {
     console.log("rawMaterialOnMongooDB :-", rawMaterialOnMongooDB[0]);
     const SI_LOOKUP = Object.fromEntries(
       rawMaterialOnMongooDB.map((rm) => [rm._id.toString(), rm.itemName]),
-    )
-    console.log("SI_LOOKUP :-", SI_LOOKUP);
+    );
     /* ======================
      * FORMAT ISSUES
      * ====================== */
@@ -898,7 +897,10 @@ const getUserItemStock = async (req, res) => {
       id: issue.id,
       items: safeParse(issue.rawMaterialIssued).map((rm) => ({
         rawMaterialId: rm.rawMaterialId,
-        rawMaterialName: RM_LOOKUP[rm.rawMaterialId] || SI_LOOKUP[rm.rawMaterialId] || "Unknown",
+        rawMaterialName:
+          RM_LOOKUP[rm.rawMaterialId] ||
+          SI_LOOKUP[rm.rawMaterialId] ||
+          "Unknown",
         quantity: rm.quantity,
         unit: rm.unit,
       })),
@@ -2575,18 +2577,18 @@ const getPendingPOsForReceiving = async (req, res) => {
 // const SystemItem = require("...");
 // const InstallationInventory = require("...");
 // const { mergeContainerStock } = require("...");
- 
+
 const QTY_EPSILON = 0.0001;
 const VEHICLE_REQUIRED_WAREHOUSES = new Set(["Bhiwani", "Malanpur Warehouse"]);
 const TX_OPTIONS = { maxWait: 10000, timeout: 30000 };
- 
+
 class AppError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
   }
 }
- 
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -2597,24 +2599,32 @@ const toQty = (value, label) => {
   }
   return n;
 };
- 
-const convertToBaseQty = ({ qty, poUnit, baseUnit, convUnit, factor, label }) => {
+
+const convertToBaseQty = ({
+  qty,
+  poUnit,
+  baseUnit,
+  convUnit,
+  factor,
+  label,
+}) => {
   if (!baseUnit || poUnit === baseUnit) return qty;
   if (convUnit && poUnit === convUnit) {
-    if (!(factor > 0)) throw new AppError(400, `Invalid conversion factor for ${label}.`);
+    if (!(factor > 0))
+      throw new AppError(400, `Invalid conversion factor for ${label}.`);
     return qty / factor;
   }
   throw new AppError(400, `Invalid unit for ${label}.`);
 };
- 
+
 const validateContainerStock = (item, goodQty) => {
   if (goodQty <= 0) return;
- 
+
   const { stock, itemName } = item;
   if (!stock || typeof stock !== "object" || Array.isArray(stock)) {
     throw new AppError(400, `Container stock is required for ${itemName}.`);
   }
- 
+
   let total = 0;
   for (const [container, qty] of Object.entries(stock)) {
     const n = Number(qty);
@@ -2626,7 +2636,7 @@ const validateContainerStock = (item, goodQty) => {
     }
     total += n;
   }
- 
+
   if (Math.abs(total - goodQty) > QTY_EPSILON) {
     throw new AppError(
       400,
@@ -2634,7 +2644,7 @@ const validateContainerStock = (item, goodQty) => {
     );
   }
 };
- 
+
 /**
  * Validates + normalises the request items and pre-fetches every master record
  * (SystemItem / RawMaterial) in ONE query per source, so nothing has to be
@@ -2645,41 +2655,41 @@ const prepareItems = async (rawItems, po) => {
   const poItemsById = new Map(po.items.map((p) => [String(p.id), p]));
   const seen = new Set();
   const lines = [];
- 
+
   for (const raw of rawItems) {
     const { itemId, itemSource, purchaseOrderItemId } = raw || {};
- 
+
     if (!itemId || !itemSource || !purchaseOrderItemId) {
       throw new AppError(400, "Invalid item data.");
     }
     if (itemSource !== "mongo" && itemSource !== "mysql") {
       throw new AppError(400, "Invalid itemSource.");
     }
- 
+
     const key = String(purchaseOrderItemId);
     if (seen.has(key)) {
       throw new AppError(400, "Duplicate purchaseOrderItemId in request.");
     }
     seen.add(key);
- 
+
     const poItem = poItemsById.get(key);
     if (!poItem) throw new AppError(404, "PO item not found.");
- 
+
     const itemName = raw.itemName || String(itemId);
     const goodQty = toQty(raw.goodQty, `goodQty for ${itemName}`);
     const damagedQty = toQty(raw.damagedQty, `damagedQty for ${itemName}`);
- 
+
     // Nothing received on this line, skip it.
     if (goodQty === 0 && damagedQty === 0) continue;
- 
+
     validateContainerStock({ ...raw, itemName }, goodQty);
- 
+
     const orderedQty = Number(poItem.quantity || 0);
     const alreadyReceived = Number(poItem.receivedQty || 0);
     if (alreadyReceived + goodQty > orderedQty + QTY_EPSILON) {
       throw new AppError(409, `Over receiving ${itemName}`);
     }
- 
+
     lines.push({
       poItem,
       purchaseOrderItemId: poItem.id, // DB-typed id
@@ -2697,34 +2707,41 @@ const prepareItems = async (rawItems, po) => {
       baseQty: 0, // filled below
     });
   }
- 
+
   if (!lines.length) {
     throw new AppError(400, "No received quantities provided.");
   }
- 
+
   // ---- Pre-fetch master records (1 query per source) ----
   const mongoIds = [
-    ...new Set(lines.filter((l) => l.itemSource === "mongo").map((l) => String(l.itemId))),
+    ...new Set(
+      lines
+        .filter((l) => l.itemSource === "mongo")
+        .map((l) => String(l.itemId)),
+    ),
   ];
   const mysqlIds = [
-    ...new Set(lines.filter((l) => l.itemSource === "mysql").map((l) => l.itemId)),
+    ...new Set(
+      lines.filter((l) => l.itemSource === "mysql").map((l) => l.itemId),
+    ),
   ];
- 
+
   const [systemItems, rawMaterials] = await Promise.all([
     mongoIds.length ? SystemItem.find({ _id: { $in: mongoIds } }) : [],
     mysqlIds.length
       ? prisma.rawMaterial.findMany({ where: { id: { in: mysqlIds } } })
       : [],
   ]);
- 
+
   const systemItemMap = new Map(systemItems.map((s) => [String(s._id), s]));
   const rawMatMap = new Map(rawMaterials.map((r) => [String(r.id), r]));
- 
+
   for (const line of lines) {
     if (line.itemSource === "mongo") {
       const sys = systemItemMap.get(String(line.itemId));
-      if (!sys) throw new AppError(404, `SystemItem not found for ${line.itemName}.`);
- 
+      if (!sys)
+        throw new AppError(404, `SystemItem not found for ${line.itemName}.`);
+
       line.baseQty = convertToBaseQty({
         qty: line.goodQty,
         poUnit: line.poUnit,
@@ -2738,8 +2755,9 @@ const prepareItems = async (rawItems, po) => {
       });
     } else {
       const raw = rawMatMap.get(String(line.itemId));
-      if (!raw) throw new AppError(404, `RawMaterial not found for ${line.itemName}.`);
- 
+      if (!raw)
+        throw new AppError(404, `RawMaterial not found for ${line.itemName}.`);
+
       line.rawMaterialId = raw.id; // DB-typed id
       line.baseUnit = raw.unit?.toLowerCase().trim();
       line.baseQty = convertToBaseQty({
@@ -2752,10 +2770,10 @@ const prepareItems = async (rawItems, po) => {
       });
     }
   }
- 
+
   return lines;
 };
- 
+
 /**
  * Compensating rollback for Mongo. Uses atomic $inc so it is safe even if
  * other writers touched the same document in the meantime.
@@ -2780,7 +2798,7 @@ const rollbackMongo = async (stack) => {
     }
   }
 };
- 
+
 // ---------------------------------------------------------------------------
 // Controller
 // ---------------------------------------------------------------------------
@@ -2789,7 +2807,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
   const warehouseId = String(req.user?.warehouseId);
   const mongoRollbackStack = [];
   let uploadedFilePath = null;
- 
+
   const deleteUploadedFile = async () => {
     if (!uploadedFilePath) return;
     try {
@@ -2798,18 +2816,18 @@ const purchaseOrderReceivingBill = async (req, res) => {
       console.error("⚠️ Failed to delete uploaded file:", err);
     }
   };
- 
+
   try {
     // ================= FILE (set first so every failure path cleans up) =================
     const billFile = req.files?.billFile?.[0];
     if (!billFile) throw new AppError(400, "Bill file is required.");
- 
+
     uploadedFilePath = path.join(
       __dirname,
       "../../uploads/purchaseOrder/receivingBill",
       billFile.filename,
     );
- 
+
     // ================= PARSE BODY =================
     let rawItems = req.body.items;
     if (typeof rawItems === "string") {
@@ -2819,9 +2837,9 @@ const purchaseOrderReceivingBill = async (req, res) => {
         throw new AppError(400, "Invalid items JSON.");
       }
     }
- 
+
     const { purchaseOrderId, invoiceNumber, vehicleNumber } = req.body;
- 
+
     if (
       !purchaseOrderId ||
       !invoiceNumber ||
@@ -2833,37 +2851,37 @@ const purchaseOrderReceivingBill = async (req, res) => {
         "purchaseOrderId, invoiceNumber and items are required.",
       );
     }
- 
+
     // ================= FETCH + CHECK PO =================
     const po = await prisma.purchaseOrder.findUnique({
       where: { id: purchaseOrderId },
       include: { items: true },
     });
- 
+
     if (!po) throw new AppError(404, "Purchase Order not found.");
- 
+
     if (String(po.warehouseId) !== warehouseId) {
       throw new AppError(403, "Unauthorized warehouse access.");
     }
- 
+
     if (VEHICLE_REQUIRED_WAREHOUSES.has(po.warehouseName) && !vehicleNumber) {
       throw new AppError(
         400,
         `vehicleNumber is required for ${po.warehouseName}.`,
       );
     }
- 
+
     // if (po.approvalStatus !== "Approved") {
     //   throw new AppError(400, "Cannot receive items as PO not approved by admin.");
     // }
- 
+
     if (["Cancelled", "Received"].includes(po.status)) {
       throw new AppError(409, `PO already ${po.status}.`);
     }
- 
+
     // ================= VALIDATE + PREFETCH (all outside the transaction) =================
     const lines = await prepareItems(rawItems, po);
- 
+
     // ================= TRANSACTION (MySQL writes + Mongo last) =================
     const receiptResults = await prisma.$transaction(async (tx) => {
       // Re-check status inside the tx (guards against a concurrent receipt/cancel).
@@ -2874,7 +2892,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       if (!fresh || ["Cancelled", "Received"].includes(fresh.status)) {
         throw new AppError(409, `PO already ${fresh?.status ?? "removed"}.`);
       }
- 
+
       // 1. Bill
       await tx.purchaseOrderBill.create({
         data: {
@@ -2887,7 +2905,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           uploadedBy: userId,
         },
       });
- 
+
       // 2. Receipts (single insert)
       const receivedDate = new Date();
       await tx.purchaseOrderReceipt.createMany({
@@ -2907,7 +2925,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           receivedDate,
         })),
       });
- 
+
       // 3. PO item receivedQty: atomic conditional increment (race-safe over-receive guard)
       for (const l of lines) {
         if (l.goodQty <= 0) continue;
@@ -2925,14 +2943,16 @@ const purchaseOrderReceivingBill = async (req, res) => {
           );
         }
       }
- 
+
       // 4. Container-wise history (1 read, then writes)
       const stockLines = lines.filter(
         (l) => l.goodQty > 0 && Object.keys(l.stock).length,
       );
       if (stockLines.length) {
         const existing = await tx.item_container_wise_history.findMany({
-          where: { item_id: { in: [...new Set(stockLines.map((l) => l.itemId))] } },
+          where: {
+            item_id: { in: [...new Set(stockLines.map((l) => l.itemId))] },
+          },
         });
         const historyByItem = new Map();
         for (const h of existing) {
@@ -2940,11 +2960,11 @@ const purchaseOrderReceivingBill = async (req, res) => {
             historyByItem.set(String(h.item_id), h);
           }
         }
- 
+
         for (const l of stockLines) {
           const key = String(l.itemId);
           const current = historyByItem.get(key);
- 
+
           if (current) {
             const merged = mergeContainerStock(
               current.stock_with_container,
@@ -2966,7 +2986,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           }
         }
       }
- 
+
       // 5. Damaged stock (single insert)
       const damagedLines = lines.filter((l) => l.damagedQty > 0);
       if (damagedLines.length) {
@@ -2985,7 +3005,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           })),
         });
       }
- 
+
       // 6. MySQL warehouse stock
       for (const l of lines) {
         if (l.itemSource !== "mysql" || l.goodQty <= 0) continue;
@@ -3005,35 +3025,36 @@ const purchaseOrderReceivingBill = async (req, res) => {
           },
         });
       }
- 
+
       // 7. PO status
       const updatedItems = await tx.purchaseOrderItem.findMany({
         where: { purchaseOrderId },
         select: { quantity: true, receivedQty: true },
       });
       const allReceived = updatedItems.every(
-        (i) => Number(i.receivedQty || 0) + QTY_EPSILON >= Number(i.quantity || 0),
+        (i) =>
+          Number(i.receivedQty || 0) + QTY_EPSILON >= Number(i.quantity || 0),
       );
       const anyReceived = updatedItems.some(
         (i) => Number(i.receivedQty || 0) > 0,
       );
- 
+
       let newStatus = po.status;
       if (allReceived) newStatus = "Received";
       else if (anyReceived) newStatus = "PartiallyReceived";
- 
+
       if (newStatus !== fresh.status) {
         await tx.purchaseOrder.update({
           where: { id: purchaseOrderId },
           data: { status: newStatus },
         });
       }
- 
+
       // 8. Mongo stock LAST: atomic $inc, no read-modify-write, no lookups.
       //    If anything below this (or the commit) fails, the catch block compensates.
       for (const l of lines) {
         if (l.itemSource !== "mongo" || l.goodQty <= 0) continue;
- 
+
         const before = await InstallationInventory.findOneAndUpdate(
           { warehouseId, systemItemId: l.itemId },
           {
@@ -3042,7 +3063,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           },
           { upsert: true, new: false },
         );
- 
+
         mongoRollbackStack.push({
           warehouseId,
           systemItemId: l.itemId,
@@ -3050,7 +3071,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
           created: !before,
         });
       }
- 
+
       // 9. Audit log
       const results = lines.map((l) => ({
         itemId: l.itemId,
@@ -3059,7 +3080,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
         damagedQty: l.damagedQty,
         remainingQty: l.orderedQty - l.totalReceived,
       }));
- 
+
       await tx.auditLog.create({
         data: {
           entityType: "PurchaseOrder",
@@ -3070,10 +3091,10 @@ const purchaseOrderReceivingBill = async (req, res) => {
           newValue: { receiptResults: results },
         },
       });
- 
+
       return results;
     }, TX_OPTIONS);
- 
+
     return res.status(200).json({
       success: true,
       message: "Purchase Order received successfully.",
@@ -3081,14 +3102,14 @@ const purchaseOrderReceivingBill = async (req, res) => {
     });
   } catch (err) {
     console.error("❌ PO Receiving Error:", err);
- 
+
     // MySQL is already rolled back by Prisma; undo any Mongo writes that happened.
     if (mongoRollbackStack.length) await rollbackMongo(mongoRollbackStack);
     await deleteUploadedFile();
- 
+
     let status = 500;
     let message = "PO receiving failed.";
- 
+
     if (err instanceof AppError) {
       status = err.status;
       message = err.message;
@@ -3099,7 +3120,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       status = 503;
       message = "Server is busy, please retry.";
     }
- 
+
     return res.status(status).json({ success: false, message });
   }
 };
@@ -4291,6 +4312,12 @@ const getDirectItemIssueHistory = async (req, res) => {
       rawMaterialMap[rm.id] = rm.name;
     });
 
+    // mongoDB
+    const rawMaterialOnMongooDB = await SystemItem.find().lean();
+    console.log("rawMaterialOnMongooDB :-", rawMaterialOnMongooDB[0]);
+    const SI_LOOKUP = Object.fromEntries(
+      rawMaterialOnMongooDB.map((rm) => [rm._id.toString(), rm.itemName]),
+    );
     // Build clean, simple response
     console.log("history:", history[0]);
     const response = history.map((issue) => ({
@@ -4305,7 +4332,7 @@ const getDirectItemIssueHistory = async (req, res) => {
       rawMaterialIssued: Array.isArray(issue.rawMaterialIssued)
         ? issue.rawMaterialIssued.map((item) => ({
             rawMaterialId: item.rawMaterialId,
-            rawMaterialName: rawMaterialMap[item.rawMaterialId] || null,
+            rawMaterialName: rawMaterialMap[item.rawMaterialId] || SI_LOOKUP[item.rawMaterialId] || null,
             quantity: item.quantity,
             unit: item.unit,
           }))
@@ -5506,8 +5533,7 @@ const sanctionItemForRequest3 = async (req, res) => {
             },
           });
         } else if (type === "infra") {
-
-        /* ================= INFRA ================= */
+          /* ================= INFRA ================= */
           const stock = await tx.warehouseStock.findFirst({
             where: { warehouseId, infraMaterialId: item.id },
           });
@@ -5537,8 +5563,7 @@ const sanctionItemForRequest3 = async (req, res) => {
             },
           });
         } else if (type === "tool") {
-
-        /* ================= TOOL ================= */
+          /* ================= TOOL ================= */
           const stock = await tx.warehouseStock.findFirst({
             where: { warehouseId, toolId: item.id },
           });
@@ -6422,21 +6447,17 @@ const returnMaterial = async (req, res) => {
       const { rawMaterialId, returnQty } = item;
 
       if (!rawMaterialId) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "rawMaterialId is required for each return item",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "rawMaterialId is required for each return item",
+        });
       }
       const qty = parseFloat(returnQty);
       if (isNaN(qty) || qty <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `returnQty must be > 0 for item ${rawMaterialId}`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `returnQty must be > 0 for item ${rawMaterialId}`,
+        });
       }
 
       const totalIssued = issuedTotals.get(rawMaterialId) || 0;
@@ -6625,14 +6646,22 @@ const addItemContainerStock = async (req, res) => {
         });
       }
 
-      if (c.quantity === undefined || c.quantity === null || isNaN(qty) || qty < 0) {
+      if (
+        c.quantity === undefined ||
+        c.quantity === null ||
+        isNaN(qty) ||
+        qty < 0
+      ) {
         return res.status(400).json({
           success: false,
           message: `Invalid quantity for containerId ${c.containerId}`,
         });
       }
 
-      incomingMap.set(c.containerId, (incomingMap.get(c.containerId) || 0) + qty);
+      incomingMap.set(
+        c.containerId,
+        (incomingMap.get(c.containerId) || 0) + qty,
+      );
     }
 
     /* ---------------- 3. CHECK CONTAINERS EXIST ---------------- */
@@ -6788,7 +6817,7 @@ module.exports = {
   newDirectItemIssue,
   getOutstandingReturnableMaterials,
   returnMaterial,
-  addItemContainerStock
+  addItemContainerStock,
 };
 
 // [{
