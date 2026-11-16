@@ -863,6 +863,11 @@ model PurchaseOrder {
   invoices                 VendorInvoices[]
   prePos                   PrePo[]
 
+  source_po_id             String?
+  sourcePo     PurchaseOrder?  @relation("PO_Resale", fields: [source_po_id], references: [id])
+  resalePos    PurchaseOrder[] @relation("PO_Resale")
+
+  @@index([source_po_id], map: "PurchaseOrder_source_po_id_fkey")
   @@index([bankDetailId], map: "PurchaseOrder_bankDetailId_fkey")
   @@index([companyId], map: "PurchaseOrder_companyId_fkey")
   @@index([createdBy], map: "PurchaseOrder_createdBy_fkey")

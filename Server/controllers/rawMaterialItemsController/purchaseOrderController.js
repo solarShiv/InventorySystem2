@@ -1564,6 +1564,7 @@ const createPurchaseOrder = async (req, res) => {
       exchangeRate,
       expectedDeliveryDate,
       otherCharges = [],
+      source_po_id,
       prePoId = null,
     } = req.body;
     console.log("req ->", req.body);
@@ -1584,7 +1585,19 @@ const createPurchaseOrder = async (req, res) => {
           .status(404)
           .json({ success: false, message: "PrePo Not found" });
     }
-
+    if(source_po_id){
+      const checkPO = await prisma.purchaseOrder.findUnique({
+        where: {
+          id:source_po_id
+        }
+      })
+      if(!checkPO){
+        return res.status(404).json({
+          success:false,
+          message:"Invalid source PO ID"
+        })
+      }
+    }
     const userId = req.user?.id;
     if (!userId)
       return res
@@ -1984,6 +1997,7 @@ const createPurchaseOrder = async (req, res) => {
           contactPerson,
           cellNo,
           createdBy: userId,
+          source_po_id,
           expectedDeliveryDate: expectedDeliveryDate
             ? new Date(expectedDeliveryDate)
             : null,
