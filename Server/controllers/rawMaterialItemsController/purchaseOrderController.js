@@ -1585,7 +1585,8 @@ const createPurchaseOrder = async (req, res) => {
           .status(404)
           .json({ success: false, message: "PrePo Not found" });
     }
-    if(source_po_id){
+
+    if(source_po_id.trim()){
       const checkPO = await prisma.purchaseOrder.findUnique({
         where: {
           id:source_po_id
@@ -1997,7 +1998,7 @@ const createPurchaseOrder = async (req, res) => {
           contactPerson,
           cellNo,
           createdBy: userId,
-          source_po_id,
+          source_po_id: source_po_id.trim(),
           expectedDeliveryDate: expectedDeliveryDate
             ? new Date(expectedDeliveryDate)
             : null,
