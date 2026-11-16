@@ -1998,7 +1998,7 @@ const createPurchaseOrder = async (req, res) => {
           contactPerson,
           cellNo,
           createdBy: userId,
-          source_po_id: source_po_id.trim(),
+          source_po_id: source_po_id.trim() || null,
           expectedDeliveryDate: expectedDeliveryDate
             ? new Date(expectedDeliveryDate)
             : null,
