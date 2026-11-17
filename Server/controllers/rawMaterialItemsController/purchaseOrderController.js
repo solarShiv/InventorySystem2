@@ -1586,11 +1586,11 @@ const createPurchaseOrder = async (req, res) => {
           .json({ success: false, message: "PrePo Not found" });
     }
 
-    if(source_po_id.trim()){
+    if (typeof source_po_id === "string" && source_po_id.trim()) {
       const checkPO = await prisma.purchaseOrder.findUnique({
         where: {
-          id:source_po_id
-        }
+          id: source_po_id.trim(),
+        },
       })
       if(!checkPO){
         return res.status(404).json({
