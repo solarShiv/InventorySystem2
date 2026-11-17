@@ -1215,7 +1215,7 @@ const getCompaniesList = async (req, res) => {
         id: true,
         name: true,
         state: true,
-        gstNumber: true
+        gstNumber: true,
       },
       orderBy: {
         name: "asc",
@@ -1225,7 +1225,7 @@ const getCompaniesList = async (req, res) => {
     const formattedCompanies = companies.map((company) => ({
       id: company.id,
       companyName: `${company.name}${company.state ? `, ${company.state}` : ""}`,
-      gstNumber:company.gstNumber
+      gstNumber: company.gstNumber,
     }));
 
     return res.status(200).json({
@@ -1593,12 +1593,12 @@ const createPurchaseOrder = async (req, res) => {
         where: {
           id: source_po_id.trim(),
         },
-      })
-      if(!checkPO){
+      });
+      if (!checkPO) {
         return res.status(404).json({
-          success:false,
-          message:"Invalid source PO ID"
-        })
+          success: false,
+          message: "Invalid source PO ID",
+        });
       }
     }
     const userId = req.user?.id;
@@ -3576,6 +3576,14 @@ const getPurchaseOrderDetails = async (req, res) => {
         poNumber: true,
         companyId: true,
         companyName: true,
+        // Complete company details
+        company: {
+          select: {
+            id: true,
+            companyName: true,
+            gstNumber: true,
+          },
+        },
         vendorId: true,
         vendorName: true,
         warehouseId: true,
