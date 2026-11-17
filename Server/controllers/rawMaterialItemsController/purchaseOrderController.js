@@ -1215,6 +1215,7 @@ const getCompaniesList = async (req, res) => {
         id: true,
         name: true,
         state: true,
+        gstNumber: true
       },
       orderBy: {
         name: "asc",
@@ -1224,6 +1225,7 @@ const getCompaniesList = async (req, res) => {
     const formattedCompanies = companies.map((company) => ({
       id: company.id,
       companyName: `${company.name}${company.state ? `, ${company.state}` : ""}`,
+      gstNumber:company.gstNumber
     }));
 
     return res.status(200).json({
