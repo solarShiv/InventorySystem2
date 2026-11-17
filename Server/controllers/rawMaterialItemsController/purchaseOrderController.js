@@ -1326,6 +1326,7 @@ const getVendorsList = async (req, res) => {
         id: true,
         name: true,
         country: true,
+        gstNumber:true
       },
       orderBy: {
         name: "asc",
@@ -1335,6 +1336,7 @@ const getVendorsList = async (req, res) => {
     const formattedVendors = vendors.map((vendor) => ({
       id: vendor.id,
       displayName: `${vendor.name}${vendor.country ? `, ${vendor.country}` : ""}`,
+      gstNumber:vendor.gstNumber
     }));
 
     return res.status(200).json({
