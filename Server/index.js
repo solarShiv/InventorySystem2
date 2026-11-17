@@ -36,6 +36,7 @@ const tempRouter = require("./routes/temp.router");
 const prePoRouter = require('./routes/rawMaterialItemsRoutes/prePoRouter');
 // by shiv IT
 const vendorRouter= require("./routes/rawMaterialItemsRoutes/vendorRouter");
+const v2Router = require("./routes/v2/index.router");
 // Load environment variables
 const MONGODB_URL = process.env.MONGODB_URL;
 const PORT = process.env.PORT || 8001;
@@ -132,6 +133,7 @@ require("./helpers/cron/stockShortageCron");
 
 app.use('/pre-po', prePoRouter);
 app.use("/vendor", vendorRouter);
+app.use("/v2", v2Router);
 app.use("/temp", tempRouter);
 
 

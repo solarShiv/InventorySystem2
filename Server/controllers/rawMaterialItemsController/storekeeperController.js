@@ -6818,5 +6818,10 @@ module.exports = {
   getOutstandingReturnableMaterials,
   returnMaterial,
   addItemContainerStock,
+  // shared helpers (used by controllers/v2/rawMaterial/storeKeeper.controller.js)
+  AppError,
+  prepareItems,
+  mergeContainerStock,
+  rollbackMongo,
 };
 
