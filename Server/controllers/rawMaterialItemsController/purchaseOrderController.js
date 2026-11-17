@@ -3431,6 +3431,7 @@ const getPOList = async (req, res) => {
         grandTotal: true,
         status: true,
         expectedDeliveryDate: true,
+        source_po_id:true,
         // ✅ Always return ALL items
         items: {
           select: {
