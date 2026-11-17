@@ -3580,7 +3580,7 @@ const getPurchaseOrderDetails = async (req, res) => {
         company: {
           select: {
             id: true,
-            companyName: true,
+            name: true,
             gstNumber: true,
           },
         },
