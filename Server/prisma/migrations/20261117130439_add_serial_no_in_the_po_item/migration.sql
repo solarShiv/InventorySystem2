@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `purchaseorderitem` ADD COLUMN `serial_no` INTEGER NULL;
+ALTER TABLE `PurchaseOrderItem` ADD COLUMN `serial_no` INTEGER NULL;
