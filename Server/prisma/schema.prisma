@@ -863,7 +863,7 @@ model PurchaseOrder {
   invoices                 VendorInvoices[]
   prePos                   PrePo[]
 
-  source_po_id             String?
+  source_po_id String?
   sourcePo     PurchaseOrder?  @relation("PO_Resale", fields: [source_po_id], references: [id])
   resalePos    PurchaseOrder[] @relation("PO_Resale")
 
@@ -896,6 +896,7 @@ model PurchaseOrderItem {
   amountInForeign Decimal?               @db.Decimal(12, 4)
   rateInForeign   Decimal?               @db.Decimal(12, 4)
   debitNoteId     String?
+  serial_no         Int?
   debitNote       DebitNote?             @relation(fields: [debitNoteId], references: [id])
   purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
   receipts        PurchaseOrderReceipt[] @relation("Item_Receipts")

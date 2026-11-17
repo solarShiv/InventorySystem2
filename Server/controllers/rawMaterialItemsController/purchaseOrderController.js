@@ -2265,7 +2265,7 @@ const createPurchaseOrder2 = async (req, res) => {
     }
 
     // ✅ Validate + detect source
-    const validatedItems = items.map((item) => {
+    const validatedItems = items.map((item, index) => {
       const id = String(item.id);
       const name = item.name?.trim();
 
@@ -2293,6 +2293,7 @@ const createPurchaseOrder2 = async (req, res) => {
 
       return {
         ...item,
+        serial_no:index+1,
         source: detectedSource,
       };
     });
@@ -2419,6 +2420,7 @@ const createPurchaseOrder2 = async (req, res) => {
         quantity: qty,
         total: baseAmountINR,
         itemGSTType: isItemWise ? gstType : null,
+        serial_no:item.serial_no
       };
     });
 
