@@ -1838,7 +1838,7 @@ const createPurchaseOrder = async (req, res) => {
     const itemWiseItems = [];
 
     // Process items for DB
-    const processedItems = items.map((item) => {
+    const processedItems = validatedItems.map((item) => {
       const qty = new Decimal(item.quantity).toDecimalPlaces(
         4,
         Decimal.ROUND_DOWN,
@@ -1874,7 +1874,7 @@ const createPurchaseOrder = async (req, res) => {
         quantity: qty,
         total: amountINR,
         itemGSTType: isItemWise ? gstType : null,
-        serial_no:item.serial_no
+        serial_no: item.serial_no,
       };
     });
 
