@@ -474,7 +474,7 @@ async function generatePOBuffer(po, items = []) {
     }
    
     return {
-      sno: i + 1,
+      sno: it.serial_no ?? i + 1,
       itemName: it.itemName || "",
       modelNumber: it.modelNumber || "",
       itemDetail: it.itemDetail ? String(it.itemDetail) : "",

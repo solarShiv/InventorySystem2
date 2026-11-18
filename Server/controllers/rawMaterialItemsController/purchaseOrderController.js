@@ -3697,15 +3697,25 @@ const downloadPOPDF = async (req, res) => {
 
     const po = await prisma.purchaseOrder.findUnique({
       where: { id: poId },
-      include: { company: true, vendor: true, items: true },
+      include: {
+        company: true,
+        vendor: true,
+        items: {
+          orderBy: [
+            { serial_no: { sort: "asc", nulls: "last" } },
+            { createdAt: "asc" },
+          ],
+        },
+      },
     });
 
     if (!po) {
       return res.status(404).json({ success: false, message: "PO not found." });
     }
 
-    // Freeze item values exactly as stored
-    const items = po.items.map((it) => ({
+    // Freeze item values exactly as stored (ordered by serial_no)
+    const items = po.items.map((it, index) => ({
+      serial_no: it.serial_no ?? index + 1,
       itemName: it.itemName,
       hsnCode: it.hsnCode || "-",
       quantity: Number(it.quantity),
