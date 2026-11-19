@@ -3985,6 +3985,7 @@ const newDirectItemIssue = async (req, res) => {
       issuedToName,
       department,
       proof_images,
+      proof_video
     } = req.body;
 
     /* ---------------- PROOF IMAGE ---------------- */
@@ -3992,6 +3993,12 @@ const newDirectItemIssue = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Proof Image is required",
+      });
+    }
+    if(!proof_video) {
+      return res.status(400).json({
+        success: false,
+        message: "Video proof is required",
       });
     }
 
@@ -4231,6 +4238,7 @@ const newDirectItemIssue = async (req, res) => {
           department: department || issuedToUser.role?.name || null,
           remarks,
           proof_images,
+          proof_video
         },
       });
     });

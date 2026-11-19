@@ -477,6 +477,7 @@ model DirectItemIssue {
   issuedToName      String?
   materialIssued    Json?
   proof_images      String?
+  proof_video       String?
   issuedByUser      User?                   @relation("IssuedByUser", fields: [issuedBy], references: [id])
   issuedToUser      User?                   @relation("IssuedToUser", fields: [issuedTo], references: [id])
   serviceProcess    Service_Process_Record? @relation(fields: [serviceProcessId], references: [id])
@@ -896,7 +897,7 @@ model PurchaseOrderItem {
   amountInForeign Decimal?               @db.Decimal(12, 4)
   rateInForeign   Decimal?               @db.Decimal(12, 4)
   debitNoteId     String?
-  serial_no         Int?
+  serial_no       Int?
   debitNote       DebitNote?             @relation(fields: [debitNoteId], references: [id])
   purchaseOrder   PurchaseOrder          @relation(fields: [purchaseOrderId], references: [id])
   receipts        PurchaseOrderReceipt[] @relation("Item_Receipts")
