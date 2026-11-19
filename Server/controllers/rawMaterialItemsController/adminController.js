@@ -4227,6 +4227,8 @@ const getPOsForAdminApproval = async (req, res) => {
           foreignGrandTotal: true,
           status: true,
           approvalStatus: true,
+          createdBy: true,
+          user: { select: { id: true, name: true } },
           items: {
             select: {
               id: true,
@@ -4256,6 +4258,11 @@ const getPOsForAdminApproval = async (req, res) => {
       currency: po.currency,
       status: po.status,
       approvalStatus: po.approvalStatus,
+      createdBy: po.user
+        ? { id: po.user.id, name: po.user.name }
+        : po.createdBy
+          ? { id: po.createdBy, name: null }
+          : null,
       poDate: po.poDate,
       gstType: po.gstType,
       items: po.items.map((item) => ({
