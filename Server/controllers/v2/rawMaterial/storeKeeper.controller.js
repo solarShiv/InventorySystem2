@@ -2,7 +2,6 @@ const prisma = require("../../../config/prismaClient");
 const fs = require("fs/promises");
 const path = require("path");
 const InstallationInventory = require("../../../models/systemInventoryModels/installationInventorySchema");
-const { default: mongoose } = require("mongoose");
 const {
   AppError,
   prepareItems,
@@ -15,10 +14,9 @@ const VEHICLE_REQUIRED_WAREHOUSES = new Set(["Bhiwani", "Malanpur Warehouse"]);
 const TX_OPTIONS = { maxWait: 10000, timeout: 30000 };
 
 // How a received line affects warehouse stock.
-//  "add"      -> normal receipt: increase stock of the receiving warehouse
-//  "skip"     -> same-warehouse resale whose goods were already counted via the source PO
-//  "transfer" -> different-warehouse resale: decrease source warehouse, increase receiving warehouse
-const STOCK_MODE = { ADD: "add", SKIP: "skip", TRANSFER: "transfer" };
+//  "add"  -> increase stock of the receiving (this PO's) warehouse
+//  "skip" -> resale whose goods were already counted when the source PO was received
+const STOCK_MODE = { ADD: "add", SKIP: "skip" };
 
 const itemKey = (itemSource, itemId) => `${itemSource}:${String(itemId)}`;
 const normUnit = (u) => (u || "").toString().toLowerCase().trim();
@@ -105,13 +103,14 @@ const matchSourceItems = (lines, sourcePo) => {
 };
 
 /**
- * Rule 2: same warehouse. Goods arrive once, so receiving this PO also receives
- * the source PO, and stock is increased only once.
- *  - source still pending >= goodQty -> mark source received + add stock once
+ * Rule 2 (same or different warehouse): goods arrive once, so receiving this
+ * PO also auto-receives the source PO. Stock is increased only once, and only
+ * in this (resale) PO's warehouse; the source warehouse's stock is never touched.
+ *  - source still pending >= goodQty -> mark source received + add stock here
  *  - source already fully received   -> stock already counted, don't add again
  *  - partially pending                -> ask the user to split the receipt
  */
-const planSameWarehouse = (lines, sourcePo) => {
+const planSourceReceive = (lines, sourcePo) => {
   for (const l of lines) {
     l.stockMode = STOCK_MODE.ADD;
     l.sourceAllocations = [];
@@ -144,59 +143,6 @@ const planSameWarehouse = (lines, sourcePo) => {
       const qty = Math.min(free, left);
       l.sourceAllocations.push({ sourceItem: s, qty });
       left -= qty;
-    }
-  }
-};
-
-/**
- * Rule 3: different warehouse. Each item may only be received up to what the
- * source PO has actually received, minus what other resale POs (in other
- * warehouses) already pulled from it. Runs inside the transaction.
- */
-const checkTransferAvailability = async (tx, lines, sourcePo) => {
-  const transferred = await tx.purchaseOrderItem.findMany({
-    where: {
-      purchaseOrder: {
-        source_po_id: sourcePo.id,
-        warehouseId: { not: sourcePo.warehouseId },
-        status: { not: "Cancelled" },
-      },
-    },
-    select: { itemId: true, itemSource: true, receivedQty: true },
-  });
-
-  const consumedByItem = new Map();
-  for (const t of transferred) {
-    const k = itemKey(t.itemSource, t.itemId);
-    consumedByItem.set(k, (consumedByItem.get(k) || 0) + Number(t.receivedQty || 0));
-  }
-
-  // Fresh source receivedQty (inside tx)
-  const freshSourceItems = await tx.purchaseOrderItem.findMany({
-    where: { purchaseOrderId: sourcePo.id },
-    select: { itemId: true, itemSource: true, receivedQty: true },
-  });
-  const sourceReceivedByItem = new Map();
-  for (const s of freshSourceItems) {
-    const k = itemKey(s.itemSource, s.itemId);
-    sourceReceivedByItem.set(k, (sourceReceivedByItem.get(k) || 0) + Number(s.receivedQty || 0));
-  }
-
-  for (const l of lines) {
-    if (l.goodQty <= 0) continue;
-    const k = itemKey(l.itemSource, l.itemId);
-    const received = sourceReceivedByItem.get(k) || 0;
-    const consumed = consumedByItem.get(k) || 0;
-    const available = received - consumed;
-
-    if (l.goodQty > available + QTY_EPSILON) {
-      throw new AppError(
-        409,
-        received <= QTY_EPSILON
-          ? `${l.itemName} is not yet received in source PO ${sourcePo.poNumber}. Receive it there first.`
-          : `${l.itemName}: only ${Math.max(0, available)} available from source PO ${sourcePo.poNumber} ` +
-              `(received ${received}, already transferred ${consumed}).`,
-      );
     }
   }
 };
@@ -280,27 +226,9 @@ const purchaseOrderReceivingBill = async (req, res) => {
 
     // ================= SOURCE PO (resale) =================
     const sourcePo = await loadSourcePo(po); // rule 1
-    const sameWarehouse =
-      !!sourcePo && String(sourcePo.warehouseId) === String(po.warehouseId);
-    const sourceWarehouseId = sourcePo ? String(sourcePo.warehouseId) : null;
-
     if (sourcePo) {
       matchSourceItems(lines, sourcePo);
-
-      if (sameWarehouse) {
-        planSameWarehouse(lines, sourcePo); // rule 2
-      } else {
-        // rule 3
-        for (const l of lines) {
-          if (l.goodQty > 0) l.stockMode = STOCK_MODE.TRANSFER;
-        }
-        if (
-          lines.some((l) => l.itemSource === "mongo" && l.goodQty > 0) &&
-          !mongoose.isValidObjectId(sourceWarehouseId)
-        ) {
-          throw new AppError(400, `Invalid warehouse on source PO ${sourcePo.poNumber}.`);
-        }
-      }
+      planSourceReceive(lines, sourcePo); // rule 2 (same or different warehouse)
     }
 
     // ================= TRANSACTION (MySQL writes + Mongo last) =================
@@ -312,11 +240,6 @@ const purchaseOrderReceivingBill = async (req, res) => {
       });
       if (!fresh || ["Cancelled", "Received"].includes(fresh.status)) {
         throw new AppError(409, `PO already ${fresh?.status ?? "removed"}.`);
-      }
-
-      // Rule 3: source must have received enough of each item (checked inside tx).
-      if (sourcePo && !sameWarehouse) {
-        await checkTransferAvailability(tx, lines, sourcePo);
       }
 
       // 1. Bill
@@ -370,9 +293,10 @@ const purchaseOrderReceivingBill = async (req, res) => {
         }
       }
 
-      // 3b. Rule 2: same warehouse -> receive the source PO too (no extra stock).
+      // 3b. Rule 2: auto-receive the source PO too, whether its warehouse is the
+      //     same or different (no stock change in the source warehouse).
       let sourceStatus = sourcePo?.status ?? null;
-      if (sourcePo && sameWarehouse) {
+      if (sourcePo) {
         const allocations = lines.flatMap((l) =>
           (l.sourceAllocations || []).map((a) => ({ ...a, line: l })),
         );
@@ -418,7 +342,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       }
 
       // 4. Container-wise history (only for stock that is newly entering the system;
-      //    a transfer between warehouses doesn't change the item's total).
+      //    SKIP lines were already counted via the source PO).
       const stockLines = lines.filter(
         (l) =>
           l.goodQty > 0 &&
@@ -487,24 +411,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       for (const l of lines) {
         if (l.itemSource !== "mysql" || !addsStock(l)) continue;
 
-        // Rule 3: take the stock out of the source warehouse first.
-        if (l.stockMode === STOCK_MODE.TRANSFER) {
-          const { count } = await tx.warehouseStock.updateMany({
-            where: {
-              warehouseId: sourceWarehouseId,
-              rawMaterialId: l.rawMaterialId,
-              quantity: { gte: l.baseQty - QTY_EPSILON },
-            },
-            data: { quantity: { decrement: l.baseQty } },
-          });
-          if (count !== 1) {
-            throw new AppError(
-              409,
-              `Insufficient stock of ${l.itemName} in source warehouse (${sourcePo.warehouseName || sourceWarehouseId}).`,
-            );
-          }
-        }
-
+        // Stock goes only into this (resale) PO's warehouse.
         await tx.warehouseStock.upsert({
           where: {
             warehouseId_rawMaterialId: {
@@ -529,35 +436,6 @@ const purchaseOrderReceivingBill = async (req, res) => {
       //    fails, the catch block compensates using mongoRollbackStack.
       for (const l of lines) {
         if (l.itemSource !== "mongo" || !addsStock(l)) continue;
-
-        // Rule 3: decrease source warehouse (only if it has enough).
-        if (l.stockMode === STOCK_MODE.TRANSFER) {
-          const decremented = await InstallationInventory.findOneAndUpdate(
-            {
-              warehouseId: sourceWarehouseId,
-              systemItemId: l.itemId,
-              quantity: { $gte: l.baseQty - QTY_EPSILON },
-            },
-            {
-              $inc: { quantity: -l.baseQty },
-              $set: { updatedAt: new Date(), updatedByEmpId: userId },
-            },
-            { new: false },
-          );
-          if (!decremented) {
-            throw new AppError(
-              409,
-              `Insufficient stock of ${l.itemName} in source warehouse (${sourcePo.warehouseName || sourceWarehouseId}).`,
-            );
-          }
-          // rollbackMongo does $inc: -qty, so a negative qty restores the stock.
-          mongoRollbackStack.push({
-            warehouseId: sourceWarehouseId,
-            systemItemId: l.itemId,
-            qty: -l.baseQty,
-            created: false,
-          });
-        }
 
         const before = await InstallationInventory.findOneAndUpdate(
           { warehouseId, systemItemId: l.itemId },
@@ -590,8 +468,8 @@ const purchaseOrderReceivingBill = async (req, res) => {
         ? {
             sourcePoId: sourcePo.id,
             sourcePoNumber: sourcePo.poNumber,
-            sourceWarehouseId,
-            mode: sameWarehouse ? "SAME_WAREHOUSE" : "WAREHOUSE_TRANSFER",
+            sourceWarehouseId: String(sourcePo.warehouseId),
+            mode: "AUTO_RECEIVE_SOURCE",
             sourceStatus,
           }
         : null;
