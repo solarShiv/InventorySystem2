@@ -3,7 +3,7 @@ const prisma = require("../../config/prismaClient");
 const getVehicleReceiptStatusToday = async (req, res) => {
   try {
     const { vehicleNo, entryTime, warehouseId } = req.query;
-
+    console.log("body :", req.query);
     if (!vehicleNo || !entryTime) {
       return res.status(400).json({
         success: false,
@@ -14,7 +14,7 @@ const getVehicleReceiptStatusToday = async (req, res) => {
     const normalizedVehicle = vehicleNo.toUpperCase().trim();
 
     const entryDate = new Date(entryTime);
-    console.log(entryDate);
+    console.log("entry time",entryDate);
 
     if (isNaN(entryDate)) {
       return res.status(400).json({
