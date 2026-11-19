@@ -8,6 +8,7 @@ const {
   mergeContainerStock,
   rollbackMongo,
 } = require("../../rawMaterialItemsController/storekeeperController");
+const { getItemDescriptionMap, keyOf } = require("../../../util/itemDescription");
 
 const QTY_EPSILON = 0.0001;
 const VEHICLE_REQUIRED_WAREHOUSES = new Set(["Bhiwani", "Malanpur Warehouse"]);
@@ -517,7 +518,93 @@ const purchaseOrderReceivingBill = async (req, res) => {
     return res.status(status).json({ success: false, message });
   }
 };
+ // ----------- Get Pending POs For Receiving ----------------//
+const getPendingPOsForReceiving = async (req, res) => {
+  try {
+    const warehouseId = req.user.warehouseId;
+
+    // 1️⃣ Fetch POs with all items
+    const pos = await prisma.purchaseOrder.findMany({
+      where: {
+        warehouseId,
+        status: {
+          notIn: ["Cancelled", "Received", "Admin_Rejected"],
+        },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        poDate: "desc",
+      },
+    });
+
+    // 2️⃣ Item descriptions from MySQL (RawMaterial) + Mongo (SystemItem), one query each
+    const descriptionMap = await getItemDescriptionMap(
+      pos.flatMap((po) => po.items),
+    );
+
+    // 3️⃣ Filter POs + Items in JS
+    const pendingPOs = pos
+      .map((po) => {
+        // keep ONLY pending items
+        const pendingItems = po.items.filter((item) => {
+          const orderedQty = Number(item.quantity || 0);
+          const receivedQty = Number(item.receivedQty || 0);
+          return receivedQty < orderedQty;
+        });
+
+        // ❌ if no pending items, drop the PO
+        if (pendingItems.length === 0) return null;
+
+        // ✅ return PO with ONLY pending items
+        return {
+          id: po.id,
+          poNumber: po.poNumber,
+          companyId: po.companyId,
+          companyName: po.companyName,
+          vendorId: po.vendorId,
+          vendorName: po.vendorName,
+          warehouseId: po.warehouseId,
+          warehouseName: po.warehouseName,
+          poDate: po.poDate,
+          expectedDeliveryDate: po.expectedDeliveryDate,
+          status: po.status,
+          approvalStatus: po.approvalStatus,
+          items: pendingItems.map((item) => ({
+            id: item.id,
+            itemId: item.itemId,
+            itemSource: item.itemSource,
+            itemName: item.itemName,
+            description:
+              descriptionMap.get(keyOf(item.itemSource, item.itemId)) ?? null,
+            hsnCode: item.hsnCode,
+            modelNumber: item.modelNumber,
+            unit: item.unit,
+            quantity: item.quantity,
+            receivedQty: item.receivedQty,
+            pendingQty:
+              Number(item.quantity || 0) - Number(item.receivedQty || 0),
+          })),
+        };
+      })
+      .filter(Boolean); // remove null POs
+
+    return res.json({
+      success: true,
+      message: "Pending POs for receiving fetched successfully.",
+      data: pendingPOs,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Internal Server Error",
+    });
+  }
+};
+
 
 module.exports = {
   purchaseOrderReceivingBill,
+  getPendingPOsForReceiving
 };
