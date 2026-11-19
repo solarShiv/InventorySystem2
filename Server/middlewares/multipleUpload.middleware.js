@@ -10,7 +10,14 @@ const getMulterStorage = (uploadPath) => {
       cb(null, fullPath);
     },
     filename: (req, file, cb) => {
-      cb(null, file.originalname.split(".")[0]+"_"+Date.now() + path.extname(file.originalname));
+      // URL-safe name: spaces/special chars -> "_" (e.g. "My Photo.png" -> "My_Photo_1712345678.png")
+      const ext = path.extname(file.originalname).toLowerCase();
+      const base = path
+        .basename(file.originalname, path.extname(file.originalname))
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 100) || 'file';
+      cb(null, `${base}_${Date.now()}${ext}`);
     },
   });
 };
