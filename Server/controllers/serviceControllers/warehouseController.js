@@ -1344,7 +1344,7 @@ module.exports.showSystemItems = async (req, res) => {
     });
   }
 };
-
+// get system data
 module.exports.showSystemItemMapData = async (req, res) => {
   try {
     const { systemId } = req.query;
@@ -2578,7 +2578,7 @@ module.exports.assignInstaller = async (req, res) => {
     }
 
     const installationAssignEmp = await InstallationAssignEmp.findOne({
-      farmerSaralId,
+      farmerSaralId: new RegExp(`^${farmerSaralId.trim()}$`, "i"),
     }).session(session);
 
     if (!installationAssignEmp) {
