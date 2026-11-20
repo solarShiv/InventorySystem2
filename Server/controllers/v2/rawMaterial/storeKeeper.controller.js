@@ -576,6 +576,7 @@ const getPendingPOsForReceiving = async (req, res) => {
             itemId: item.itemId,
             itemSource: item.itemSource,
             itemName: item.itemName,
+            itemDetail:item.itemDetail,
             description:
               descriptionMap.get(keyOf(item.itemSource, item.itemId)) ?? null,
             hsnCode: item.hsnCode,
