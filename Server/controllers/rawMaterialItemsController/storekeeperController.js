@@ -1728,6 +1728,7 @@ const getPendingPOsForReceiving = async (req, res) => {
             itemName: item.itemName,
             hsnCode: item.hsnCode,
             modelNumber: item.modelNumber,
+            itemDetail:item.itemDetail,
             unit: item.unit,
             quantity: item.quantity,
             receivedQty: item.receivedQty,
