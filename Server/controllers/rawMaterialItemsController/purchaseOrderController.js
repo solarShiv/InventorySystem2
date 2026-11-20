@@ -3435,13 +3435,39 @@ const getPOList = async (req, res) => {
         status: true,
         expectedDeliveryDate: true,
         source_po_id:true,
-        // ✅ Always return ALL items
+        // ✅ Always return ALL items 
         items: {
           select: {
             id: true,
             itemId: true,
             itemSource: true,
             itemName: true,
+            unit: true,
+            quantity: true,
+            receivedQty: true,
+          },
+        },
+        // ✅ Receipt (GRN) data
+        receipts: {
+          orderBy: { receivedDate: "desc" },
+          select: {
+            id: true,
+            purchaseOrderItemId: true,
+            itemId: true,
+            itemSource: true,
+            itemName: true,
+            receivedQty: true,
+            goodQty: true,
+            damagedQty: true,
+            receivedDate: true,
+            remarks: true,
+            receivingBill: true,
+            invoiceNumber: true,
+            vehicleNumber: true,
+            createdAt: true,
+            user: {
+              select: { id: true, name: true },
+            },
           },
         },
       },
@@ -3451,6 +3477,10 @@ const getPOList = async (req, res) => {
       ...po,
       displayGrandTotal:
         po.currency === "INR" ? po.grandTotal : po.foreignGrandTotal,
+      receipts: po.receipts.map(({ user, ...receipt }) => ({
+        ...receipt,
+        receivedBy: user?.name || null,
+      })),
     }));
 
     return res.status(200).json({
