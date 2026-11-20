@@ -11,7 +11,12 @@ getPendingPOsForReceiving
 
 
 
-router.post("/purchaseOrder/receive", tokenVerification(["Store"]), uploadPurchaseOrderBill);
+router.post(
+  "/purchaseOrder/receive",
+  tokenVerification(["Store"]),
+  uploadPurchaseOrderBill,
+  purchaseOrderReceivingBill,
+);
 router.get("/getPendingPOsForReceiving",tokenVerification(["Store"]),getPendingPOsForReceiving);
 
 module.exports = router;
