@@ -1,0 +1,1 @@
+ALTER TABLE `PurchaseOrderReceipt` MODIFY `itemName` TEXT NULL;

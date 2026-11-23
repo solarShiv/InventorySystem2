@@ -920,7 +920,7 @@ model PurchaseOrderReceipt {
   remarks             String?
   createdBy           String?
   createdAt           DateTime           @default(now())
-  itemName            String?
+  itemName            String?            @db.Text
   receivingBill       String?
   debitNoteId         String?
   invoiceNumber       String?
