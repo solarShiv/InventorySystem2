@@ -3445,7 +3445,8 @@ const getPOList = async (req, res) => {
             unit: true,
             quantity: true,
             receivedQty: true,
-            itemDetail:true
+            itemDetail:true,
+            serial_no:true
           },
         },
         // ✅ Receipt (GRN) data
