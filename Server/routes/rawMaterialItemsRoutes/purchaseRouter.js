@@ -19,6 +19,8 @@ router.post(
   uploadVendorDocs.fields([
     { name: "aadhaarFile", maxCount: 1 },
     { name: "pancardFile", maxCount: 1 },
+    { name: "bgDocumentFile", maxCount: 1 },
+    { name: "balanceSheetFile", maxCount: 1 },
   ]),
   purchaseOrderController.createVendor,
 );
@@ -71,6 +73,8 @@ router.put(
   uploadVendorDocs.fields([
     { name: "aadhaarFile", maxCount: 1 },
     { name: "pancardFile", maxCount: 1 },
+    { name: "bgDocumentFile", maxCount: 1 },
+    { name: "balanceSheetFile", maxCount: 1 },
   ]),
   purchaseOrderController.updateVendor,
 );

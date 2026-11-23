@@ -6888,6 +6888,27 @@ const getPODashboard2 = async (req, res) => {
   }
 };
 
+const VENDOR_AUTHORIZATION_STATUSES = ["White", "Gray", "Red", "Black"];
+const VENDOR_BUY_ITEM_CATEGORIES = ["Long", "Float"];
+const VENDOR_CATEGORIES = ["Manufacture", "Trader"];
+
+// Returns an error message if any vendor enum field has an invalid value
+const validateVendorEnums = ({ authorization_status, buy_item_category, category }) => {
+  if (authorization_status && !VENDOR_AUTHORIZATION_STATUSES.includes(authorization_status)) {
+    return `Invalid authorization_status. Allowed: ${VENDOR_AUTHORIZATION_STATUSES.join(", ")}`;
+  }
+  if (buy_item_category && !VENDOR_BUY_ITEM_CATEGORIES.includes(buy_item_category)) {
+    return `Invalid buy_item_category. Allowed: ${VENDOR_BUY_ITEM_CATEGORIES.join(", ")}`;
+  }
+  if (category && !VENDOR_CATEGORIES.includes(category)) {
+    return `Invalid category. Allowed: ${VENDOR_CATEGORIES.join(", ")}`;
+  }
+  return null;
+};
+
+const toUploadUrl = (file) =>
+  `/uploads/${file.path.replace(/\\/g, "/").split("uploads/")[1]}`;
+
 const createVendor = async (req, res) => {
   let uploadedFiles = []; // keep raw disk paths to delete on failure
 
@@ -6914,6 +6935,9 @@ const createVendor = async (req, res) => {
       accountNumber,
       ifscCode,
       referenceBy,
+      authorization_status,
+      buy_item_category,
+      category,
     } = req.body;
 
     const performedBy = req.user?.id;
@@ -6955,6 +6979,31 @@ const createVendor = async (req, res) => {
 
       const cleanPath = file.path.replace(/\\/g, "/").split("uploads/")[1];
       pancardUrl = `/uploads/${cleanPath}`;
+    }
+
+    let bgDocumentUrl = null;
+    let balanceSheetUrl = null;
+
+    if (req.files?.bgDocumentFile?.[0]) {
+      const file = req.files.bgDocumentFile[0];
+      uploadedFiles.push(file.path);
+      bgDocumentUrl = toUploadUrl(file);
+    }
+
+    if (req.files?.balanceSheetFile?.[0]) {
+      const file = req.files.balanceSheetFile[0];
+      uploadedFiles.push(file.path);
+      balanceSheetUrl = toUploadUrl(file);
+    }
+
+    const enumError = validateVendorEnums({
+      authorization_status,
+      buy_item_category,
+      category,
+    });
+    if (enumError) {
+      uploadedFiles.forEach((p) => fs.existsSync(p) && fs.unlinkSync(p));
+      return res.status(400).json({ success: false, message: enumError });
     }
 
     const existingVendor = await prisma.vendor.findFirst({
@@ -7338,6 +7387,11 @@ const createVendor = async (req, res) => {
           accountNumber: accountNumber ? accountNumber?.trim() : null,
           ifscCode: ifscCode ? ifscCode?.trim()?.toUpperCase() : null,
           referenceBy: referenceBy ? referenceBy.trim() : null,
+          ...(authorization_status && { authorization_status }),
+          buy_item_category: buy_item_category || null,
+          category: category || null,
+          bg_document: bgDocumentUrl,
+          balance_sheet: balanceSheetUrl,
           createdBy: performedBy,
         },
       });
@@ -7413,6 +7467,11 @@ const getVendorById = async (req, res) => {
         ifscCode: true,
         isActive: true,
         referenceBy: true,
+        authorization_status: true,
+        buy_item_category: true,
+        category: true,
+        bg_document: true,
+        balance_sheet: true,
       },
     });
 
@@ -7432,6 +7491,10 @@ const getVendorById = async (req, res) => {
       //  : null,
       aadhaarUrl: vendor.aadhaarUrl ? `${baseUrl}${vendor.aadhaarUrl}` : null,
       pancardUrl: vendor.pancardUrl ? `${baseUrl}${vendor.pancardUrl}` : null,
+      bg_document: vendor.bg_document ? `${baseUrl}${vendor.bg_document}` : null,
+      balance_sheet: vendor.balance_sheet
+        ? `${baseUrl}${vendor.balance_sheet}`
+        : null,
       //accountNumber: mask(vendor.accountNumber),
       //ifscCode: vendor.ifscCode
       //  ? vendor.ifscCode.replace(/.(?=.{4})/g, "*")
@@ -7480,11 +7543,23 @@ const updateVendor = async (req, res) => {
       accountNumber,
       ifscCode,
       referenceBy,
+      authorization_status,
+      buy_item_category,
+      category,
     } = req.body;
 
     const existingVendor = await prisma.vendor.findUnique({ where: { id } });
     if (!existingVendor) {
-      return res.status(404).json({ message: "Vendor not found" });
+      throw Object.assign(new Error("Vendor not found"), { statusCode: 404 });
+    }
+
+    const enumError = validateVendorEnums({
+      authorization_status,
+      buy_item_category,
+      category,
+    });
+    if (enumError) {
+      throw Object.assign(new Error(enumError), { statusCode: 400 });
     }
 
     const allowedCountries = [
@@ -7853,11 +7928,28 @@ const updateVendor = async (req, res) => {
       ...(accountNumber && { accountNumber }),
       ...(ifscCode && { ifscCode }),
       ...(referenceBy && { referenceBy }),
+      ...(authorization_status && { authorization_status }),
+      ...(buy_item_category && { buy_item_category }),
+      ...(category && { category }),
     };
 
     // Keep track of what old file to remove only AFTER success
     let deleteAadhaarAfter = null;
     let deletePancardAfter = null;
+    let deleteBgDocumentAfter = null;
+    let deleteBalanceSheetAfter = null;
+
+    // BG document file
+    if (req.files?.bgDocumentFile?.[0]) {
+      updateData.bg_document = toUploadUrl(req.files.bgDocumentFile[0]);
+      deleteBgDocumentAfter = existingVendor.bg_document;
+    }
+
+    // Balance sheet file
+    if (req.files?.balanceSheetFile?.[0]) {
+      updateData.balance_sheet = toUploadUrl(req.files.balanceSheetFile[0]);
+      deleteBalanceSheetAfter = existingVendor.balance_sheet;
+    }
 
     // Aadhaar file
     if (req.files?.aadhaarFile?.[0]) {
@@ -7919,6 +8011,14 @@ const updateVendor = async (req, res) => {
       if (fs.existsSync(realPath)) fs.unlinkSync(realPath);
     }
 
+    [deleteBgDocumentAfter, deleteBalanceSheetAfter].forEach((oldUrl) => {
+      if (!oldUrl) return;
+      const realPath = oldUrl.replace(/^\//, "");
+      try {
+        if (fs.existsSync(realPath)) fs.unlinkSync(realPath);
+      } catch (err) {}
+    });
+
     res.status(200).json({
       success: true,
       message: "Vendor updated successfully",
@@ -7937,6 +8037,19 @@ const updateVendor = async (req, res) => {
     if (req.files?.pancardFile?.[0]) {
       const file = req.files.pancardFile[0].path;
       if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
+
+    ["bgDocumentFile", "balanceSheetFile"].forEach((field) => {
+      const file = req.files?.[field]?.[0]?.path;
+      try {
+        if (file && fs.existsSync(file)) fs.unlinkSync(file);
+      } catch (err) {}
+    });
+
+    if (error.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({ success: false, message: error.message });
     }
 
     res.status(500).json({

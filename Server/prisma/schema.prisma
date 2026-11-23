@@ -718,44 +718,49 @@ model Company {
 }
 
 model Vendor {
-  id                String             @id @default(uuid())
-  name              String
-  email             String?
-  gstNumber         String?
-  address           String?
-  city              String?
-  state             String?
-  pincode           String?
-  country           String?            @default("INDIA")
-  currency          String?            @default("INR")
-  contactNumber     String?
-  alternateNumber   String?
-  createdBy         String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  exchangeRate      Decimal?
-  isActive          Boolean?           @default(true)
-  contactPerson     String?
-  accountHolder     String?
-  accountNumber     String?
-  bankName          String?
-  ifscCode          String?
-  vendorAadhaar     String?
-  vendorPanCard     String?
-  aadhaarUrl        String?
-  pancardUrl        String?
-  contactNoVerified Boolean?           @default(false)
-  mailVerified      Boolean?           @default(false)
-  zipCode           String?
-  referenceBy       String?
-  bankAccounts      BankDetail[]
-  debitNotes        DebitNote[]
-  purchaseFollowUp  PurchaseFollowUp[]
-  purchaseOrders    PurchaseOrder[]
-  returnToVendor    ReturnToVendor[]
-  user              User               @relation(fields: [createdBy], references: [id])
-  vendorInvoices    VendorInvoices[]
-  prePos            PrePo[]
+  id                   String                     @id @default(uuid())
+  name                 String
+  email                String?
+  gstNumber            String?
+  address              String?
+  city                 String?
+  state                String?
+  pincode              String?
+  country              String?                    @default("INDIA")
+  currency             String?                    @default("INR")
+  contactNumber        String?
+  alternateNumber      String?
+  createdBy            String
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  exchangeRate         Decimal?
+  isActive             Boolean?                   @default(true)
+  contactPerson        String?
+  accountHolder        String?
+  accountNumber        String?
+  bankName             String?
+  ifscCode             String?
+  vendorAadhaar        String?
+  vendorPanCard        String?
+  aadhaarUrl           String?
+  pancardUrl           String?
+  contactNoVerified    Boolean?                   @default(false)
+  mailVerified         Boolean?                   @default(false)
+  zipCode              String?
+  referenceBy          String?
+  authorization_status authorization_status_type? @default(White) // White || Gray || Red || Black
+  buy_item_category    buy_item_category_type? // Long || Float
+  category             category_type? // Manufature || Trader
+  bg_document          String?
+  balance_sheet        String?
+  bankAccounts         BankDetail[]
+  debitNotes           DebitNote[]
+  purchaseFollowUp     PurchaseFollowUp[]
+  purchaseOrders       PurchaseOrder[]
+  returnToVendor       ReturnToVendor[]
+  user                 User                       @relation(fields: [createdBy], references: [id])
+  vendorInvoices       VendorInvoices[]
+  prePos               PrePo[]
 
   @@index([createdBy], map: "Vendor_createdBy_fkey")
 }
@@ -1376,6 +1381,23 @@ enum BillPaymentType {
   Partial_Payment
   Full_Payment
   Full_Payment_In_Advance
+}
+
+enum authorization_status_type {
+  White
+  Gray
+  Red
+  Black
+}
+
+enum buy_item_category_type {
+  Long
+  Float
+}
+
+enum category_type {
+  Manufacture
+  Trader
 }
 
 model MaterialReturn {
