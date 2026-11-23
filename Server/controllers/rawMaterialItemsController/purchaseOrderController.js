@@ -2731,6 +2731,11 @@ const updatePurchaseOrder = async (req, res) => {
           success: false,
           message: "gstRate is only allowed when PO GST type is ITEMWISE",
         });
+      if(!item.serial_no || item.serial_no === null || item.serial_no <= 0)
+        return res.status(400).json({
+          success:false,
+          message:"Serial number are required in item"
+        })
     }
 
     const oldValue = JSON.parse(JSON.stringify(existingPO));
@@ -2837,7 +2842,7 @@ const updatePurchaseOrder = async (req, res) => {
 
         rate: new Decimal(item.rate),
         quantity: qty,
-
+        serial_no:item.serial_no,
         gstRate: itemGSTRate,
         itemGSTType: itemGSTType,
 
