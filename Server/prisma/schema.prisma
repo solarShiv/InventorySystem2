@@ -1392,7 +1392,7 @@ enum authorization_status_type {
 
 enum buy_item_category_type {
   Long
-  Float
+  Flat
 }
 
 enum category_type {
