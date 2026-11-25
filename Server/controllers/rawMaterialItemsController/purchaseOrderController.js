@@ -6755,8 +6755,24 @@ const getRawMaterialByWarehouse = async (req, res) => {
         };
       });
 
+    // ================= CONTAINER STOCK =================
+    const allItems = [...rawMaterialData, ...inventoryData];
+    const containerHistory = await prisma.item_container_wise_history.findMany({
+      where: { item_id: { in: allItems.map((i) => i.id) } },
+      select: { item_id: true, stock_with_container: true },
+    });
+    const containerMap = new Map(
+      containerHistory.map((h) => [h.item_id, h.stock_with_container || {}]),
+    );
+    for (const item of allItems) {
+      const stockByContainer = containerMap.get(item.id) || {};
+      item.containers = Object.entries(stockByContainer).map(
+        ([name, quantity]) => ({ name, quantity: Number(quantity) || 0 }),
+      );
+    }
+
     // ================= MERGE + SORT =================
-    const sortedData = [...rawMaterialData, ...inventoryData].sort((a, b) => {
+    const sortedData = allItems.sort((a, b) => {
       // Step 1: In-stock first, out-of-stock last
       if (a.outOfStock !== b.outOfStock) {
         return a.outOfStock ? 1 : -1;
