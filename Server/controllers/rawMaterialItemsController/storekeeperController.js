@@ -4338,6 +4338,7 @@ const getDirectItemIssueHistory = async (req, res) => {
       issuedToId: issue.issuedToUser?.id || null,
       issuedToName: issue.issuedToName || issue.issuedToUser?.name || null,
       proof_images: issue?.proof_images,
+      proof_video: issue?.proof_video || null,
       rawMaterialIssued: Array.isArray(issue.rawMaterialIssued)
         ? issue.rawMaterialIssued.map((item) => ({
             rawMaterialId: item.rawMaterialId,
