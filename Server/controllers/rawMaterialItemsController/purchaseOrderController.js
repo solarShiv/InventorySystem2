@@ -1326,7 +1326,8 @@ const getVendorsList = async (req, res) => {
         id: true,
         name: true,
         country: true,
-        gstNumber:true
+        gstNumber:true,
+        authorization_status:true
       },
       orderBy: {
         name: "asc",
@@ -1336,7 +1337,8 @@ const getVendorsList = async (req, res) => {
     const formattedVendors = vendors.map((vendor) => ({
       id: vendor.id,
       displayName: `${vendor.name}${vendor.country ? `, ${vendor.country}` : ""}`,
-      gstNumber:vendor.gstNumber
+      gstNumber:vendor.gstNumber,
+      authorization_status:vendor.authorization_status
     }));
 
     return res.status(200).json({
@@ -1363,6 +1365,7 @@ const getVendorsData = async (req, res) => {
         address: true,
         country: true,
         isActive: true,
+        authorization_status:true
       },
       orderBy: {
         name: "asc",
@@ -1408,6 +1411,7 @@ const getVendorById2 = async (req, res) => {
         contactNumber: true,
         alternateNumber: true,
         isActive: true,
+        authorization_status:true
       },
     });
 
