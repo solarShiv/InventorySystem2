@@ -36,6 +36,7 @@ const MaterialDispatchLog = require("../../models/systemInventoryModels/material
 const Item = require("../../models/serviceInventoryModels/itemSchema");
 const DispatchSerialNumbers = require("../../models/systemInventoryModels/dispatchedSerialNumbers");
 const SystemOrder = require("../../models/systemInventoryModels/systemOrderSchema");
+const { getOrderSystemId } = require("../../config/systemOrderMap");
 const BOM = require("../../models/systemInventoryModels/bomModelSchema");
 const apiRequest = require("../../util/apiRequest");
 //****************** Admin Access ******************//
@@ -2154,9 +2155,10 @@ module.exports.addNewInstallationData = async (req, res) => {
       assignedEmps.push(assignedEmp);
       dispatchDetails.dispatchedSystems.push(farmerActivity._id);
 
+      // Orders may be shared with another system (see config/systemOrderMap.js)
       const updatedOrder = await SystemOrder.findOneAndUpdate(
         {
-          systemId: system.systemId,
+          systemId: getOrderSystemId(system.systemId),
           pumpId: system.pumpId,
         },
         {
@@ -2495,9 +2497,10 @@ module.exports.addNewInstallationData2 = async (req, res) => {
       assignedEmps.push(assignedEmp);
       dispatchDetails.dispatchedSystems.push(farmerActivity._id);
 
+      // Orders may be shared with another system (see config/systemOrderMap.js)
       const updatedOrder = await SystemOrder.findOneAndUpdate(
         {
-          systemId: system.systemId,
+          systemId: getOrderSystemId(system.systemId),
           pumpId: system.pumpId,
         },
         {

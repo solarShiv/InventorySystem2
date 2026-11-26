@@ -4,6 +4,7 @@ const SystemOrder = require("../models/systemInventoryModels/systemOrderSchema")
 const SystemItemMap = require("../models/systemInventoryModels/systemItemMapSchema");
 const ItemComponentMap = require("../models/systemInventoryModels/itemComponentMapSchema");
 const InstallationInventory = require("../models/systemInventoryModels/installationInventorySchema");
+const { getOrderSystemId } = require("../config/systemOrderMap");
 
 const getPumpHead = (itemName = "") => {
   const heads = ["30M", "50M", "70M", "100M"];
@@ -29,7 +30,11 @@ module.exports = async (systemId, warehouseId) => {
      STEP 1: SYSTEM ORDERS (HEAD-WISE DESIRED)
      (UNKNOWN → COMMON ONLY)
 ===================================================== */
-  const systemOrders = await SystemOrder.find({ warehouseId, systemId }).lean();
+  // Orders may be shared with another system (see config/systemOrderMap.js)
+  const systemOrders = await SystemOrder.find({
+    warehouseId,
+    systemId: getOrderSystemId(systemId),
+  }).lean();
 
   const headWiseOrders = {};
   let totalDesired = 0;

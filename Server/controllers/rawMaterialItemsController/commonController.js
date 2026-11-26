@@ -9,7 +9,8 @@ const Warehouse = require("../../models/serviceInventoryModels/warehouseSchema")
 const System = require("../../models/systemInventoryModels/systemSchema");
 const SystemItem = require("../../models/systemInventoryModels/systemItemSchema");
 const SystemOrder = require("../../models/systemInventoryModels/systemOrderSchema");
-const BOM = require("../../models/systemInventoryModels/bomModelSchema");
+const { getOrderSystemId } = require("../../config/systemOrderMap");
+const BOM =require("../../models/systemInventoryModels/bomModelSchema");
 const InstallationInventory = require("../../models/systemInventoryModels/installationInventorySchema");
 const SystemItemMap = require("../../models/systemInventoryModels/systemItemMapSchema");
 const ItemComponentMap = require("../../models/systemInventoryModels/itemComponentMapSchema");
@@ -2768,8 +2769,11 @@ const addSystemOrder = async (req, res) => {
       });
     }
 
+    // Orders may be shared with another system (see config/systemOrderMap.js)
+    const orderSystemId = getOrderSystemId(systemId);
+
     const existingSystemOrder = await SystemOrder.findOne({
-      systemId,
+      systemId: orderSystemId,
       pumpHead,
     });
 
@@ -2781,7 +2785,7 @@ const addSystemOrder = async (req, res) => {
     }
 
     const createSystemOrder = new SystemOrder({
-      systemId,
+      systemId: orderSystemId,
       pumpId: pumpId || null,
       pumpHead,
     });
@@ -2824,7 +2828,11 @@ const increaseOrDecreaseSystemOrder = async (req, res) => {
     }
 
     // 🔍 Fetch current order
-    const systemOrder = await SystemOrder.findOne({ systemId, pumpHead });
+    // Orders may be shared with another system (see config/systemOrderMap.js)
+    const systemOrder = await SystemOrder.findOne({
+      systemId: getOrderSystemId(systemId),
+      pumpHead,
+    });
 
     if (!systemOrder) {
       return res.status(404).json({
