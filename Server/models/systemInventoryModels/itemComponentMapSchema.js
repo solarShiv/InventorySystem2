@@ -21,7 +21,7 @@ const itemComponentMapSchema = new Schema(
     bomId: {
       type: Schema.Types.ObjectId,
       ref: "BOM",
-      required: true,
+      // required: true,
     },
     quantity: {
       type: Number,

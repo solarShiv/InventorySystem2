@@ -4749,23 +4749,64 @@ module.exports.uploadSystemSubItemsFromExcel = async (req, res) => {
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet);
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
     const createdBy = req.user._id; // assuming JWT-based auth adds this
 
-    const systemItemMap = data.map((row) => ({
-      systemId: row.systemId,
-      systemItemId: row.systemItemId,
-      quantity: row.quantity,
-      createdBy,
-    }));
+    const systemItemMap = [];
+    const skipped = [];
 
-    await SystemItemMap.insertMany(systemItemMap);
+    data.forEach((row, i) => {
+      const excelRow = i + 2; // row 1 is the header
+      const systemId = String(row.systemId).trim();
+      const systemItemId = String(row.systemItemId).trim();
+      const quantity = Number(row.quantity);
+
+      if (!mongoose.Types.ObjectId.isValid(systemId)) {
+        return skipped.push({ row: excelRow, reason: `invalid systemId "${systemId}"` });
+      }
+      if (!mongoose.Types.ObjectId.isValid(systemItemId)) {
+        return skipped.push({ row: excelRow, reason: `invalid systemItemId "${systemItemId}"` });
+      }
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return skipped.push({ row: excelRow, reason: `invalid quantity "${row.quantity}"` });
+      }
+
+      systemItemMap.push({ excelRow, systemId, systemItemId, quantity, createdBy });
+    });
+
+    // Make sure every systemId / systemItemId actually exists
+    // (catches Excel auto-fill incrementing the ID on each row)
+    const [systems, items] = await Promise.all([
+      System.find({ _id: { $in: [...new Set(systemItemMap.map((d) => d.systemId))] } }, { _id: 1 }).lean(),
+      SystemItem.find({ _id: { $in: [...new Set(systemItemMap.map((d) => d.systemItemId))] } }, { _id: 1 }).lean(),
+    ]);
+    const systemIds = new Set(systems.map((s) => String(s._id)));
+    const itemIds = new Set(items.map((s) => String(s._id)));
+
+    const validDocs = [];
+    for (const { excelRow, ...doc } of systemItemMap) {
+      if (!systemIds.has(doc.systemId)) {
+        skipped.push({ row: excelRow, reason: `systemId "${doc.systemId}" not found` });
+      } else if (!itemIds.has(doc.systemItemId)) {
+        skipped.push({ row: excelRow, reason: `systemItemId "${doc.systemItemId}" not found` });
+      } else {
+        validDocs.push(doc);
+      }
+    }
+    skipped.sort((a, b) => a.row - b.row);
+
+    const inserted = validDocs.length
+      ? await SystemItemMap.insertMany(validDocs, { ordered: false })
+      : [];
 
     return res.status(201).json({
       success: true,
       message: "Sub-items uploaded successfully",
-      insertedCount: systemItemMap.length,
+      totalRows: data.length,
+      insertedCount: inserted.length,
+      skippedCount: skipped.length,
+      skipped,
     });
   } catch (error) {
     return res.status(500).json({

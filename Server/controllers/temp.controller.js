@@ -1,5 +1,7 @@
 const ExcelJS = require("exceljs");
+const XLSX = require("xlsx");
 const prisma = require("../config/prismaClient");
+const SystemItem = require("../models/systemInventoryModels/systemItemSchema");
 const exportPurchaseOrders = async (req, res) => {
   try {
     const purchaseOrders = await prisma.purchaseOrder.findMany({
@@ -463,7 +465,91 @@ const po_list = async (req, res) => {
     });
   }
 };
+
+
+
+/**
+ * POST /common/fill-system-item-id   (multipart, field: "file")
+ * Excel columns: SystemId | systemItemId | itemName | quantity
+ * Fills systemItemId by matching itemName (trimmed, case-insensitive)
+ * against SystemItem and returns the updated Excel file.
+ */
+const normalizeName = (name) =>
+  String(name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+const fillSystemItemIdInExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Excel file is required" });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    if (!rows.length) {
+      return res.status(400).json({ success: false, message: "Excel file is empty" });
+    }
+
+    // Keep original column order; make sure systemItemId column exists
+    const headers = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0].map(String);
+    if (!headers.includes("itemName")) {
+      return res.status(400).json({ success: false, message: "itemName column is required" });
+    }
+    if (!headers.includes("systemItemId")) headers.splice(1, 0, "systemItemId");
+
+    // itemName -> _id lookup (first match wins)
+    const systemItems = await SystemItem.find({}, { _id: 1, itemName: 1 }).lean();
+    const itemMap = new Map();
+    for (const item of systemItems) {
+      const key = normalizeName(item.itemName);
+      if (!itemMap.has(key)) itemMap.set(key, String(item._id));
+    }
+
+    const notFound = new Set();
+    let matched = 0;
+
+    const updatedRows = rows.map((row) => {
+      const id = itemMap.get(normalizeName(row.itemName));
+      if (id) {
+        matched++;
+        return { ...row, systemItemId: id };
+      }
+      if (row.itemName) notFound.add(String(row.itemName).trim());
+      return { ...row, systemItemId: row.systemItemId || "" };
+    });
+
+    const newSheet = XLSX.utils.json_to_sheet(updatedRows, { header: headers });
+    workbook.Sheets[sheetName] = newSheet;
+
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    const fileName = `system-items-filled-${Date.now()}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.setHeader("X-Matched-Count", matched);
+    res.setHeader("X-NotFound-Count", rows.length - matched);
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "Content-Disposition, X-Matched-Count, X-NotFound-Count",
+    );
+    if (notFound.size) console.log("fillSystemItemIdInExcel - not found:", [...notFound]);
+
+    return res.send(buffer);
+  } catch (error) {
+    console.error("fillSystemItemIdInExcel error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process Excel file",
+    });
+  }
+};
 module.exports = {
+  fillSystemItemIdInExcel,
   exportPurchaseOrders,
   downloadCompaniesExcel,
   downloadVendorExcel,
