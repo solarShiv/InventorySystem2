@@ -229,6 +229,8 @@ const createContainer = async (req, res) => {
 // GET all containers of a warehouse
 const getAllContainers = async (req, res) => {
   try {
+    
+    console.log("req,",req.user?.warehouseId || req.body?.warehouseId || req.query?.warehouseId);
     const { warehouseId, error, status } = await resolveContainerWarehouse(req);
     if (error) {
       return res.status(status || 400).json({ success: false, message: error });
