@@ -6762,7 +6762,10 @@ const getRawMaterialByWarehouse = async (req, res) => {
     // ================= CONTAINER STOCK =================
     const allItems = [...rawMaterialData, ...inventoryData];
     const containerHistory = await prisma.item_container_wise_history.findMany({
-      where: { item_id: { in: allItems.map((i) => i.id) } },
+      where: {
+        item_id: { in: allItems.map((i) => i.id) },
+        warehouse_id: String(warehouseId),
+      },
       select: { item_id: true, stock_with_container: true },
     });
     const containerMap = new Map(

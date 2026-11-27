@@ -1423,14 +1423,21 @@ model MaterialReturn {
 }
 
 model item_container_wise_history {
-  id                   String @id @default(uuid())
+  id                   String  @id @default(uuid())
   item_id              String
+  warehouse_id         String?
   stock_with_container Json?
 
+  @@unique([item_id, warehouse_id])
   @@index([item_id])
+  @@index([warehouse_id])
 }
 
 model container_list {
-  id   String @id @default(uuid())
-  name String
+  id           String  @id @default(uuid())
+  name         String
+  warehouse_id String?
+
+  @@unique([warehouse_id, name])
+  @@index([warehouse_id])
 }

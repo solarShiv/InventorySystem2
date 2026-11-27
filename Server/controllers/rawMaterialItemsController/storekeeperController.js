@@ -431,7 +431,10 @@ const getWarehouseRawMaterialList = async (req, res) => {
 
     const containerRows = allItemIds.length
       ? await prisma.item_container_wise_history.findMany({
-          where: { item_id: { in: allItemIds } },
+          where: {
+            item_id: { in: allItemIds },
+            warehouse_id: String(warehouseId),
+          },
         })
       : [];
 
@@ -2953,6 +2956,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
         const existing = await tx.item_container_wise_history.findMany({
           where: {
             item_id: { in: [...new Set(stockLines.map((l) => l.itemId))] },
+            warehouse_id: warehouseId,
           },
         });
         const historyByItem = new Map();
@@ -2980,6 +2984,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
             const created = await tx.item_container_wise_history.create({
               data: {
                 item_id: l.itemId,
+                warehouse_id: warehouseId,
                 stock_with_container: mergeContainerStock({}, l.stock),
               },
             });
@@ -3926,14 +3931,22 @@ const directItemIssue = async (req, res) => {
 
 /**
  * Deduct container-wise stock (item_container_wise_history) for ANY item
- * (MySQL uuid items and Mongo ObjectId items both use item_id).
+ * (MySQL uuid items and Mongo ObjectId items both use item_id) in ONE warehouse.
  */
-const deductContainerStock = async (tx, itemId, containersToDeduct) => {
+const deductContainerStock = async (
+  tx,
+  warehouseId,
+  itemId,
+  containersToDeduct,
+) => {
   const row = await tx.item_container_wise_history.findFirst({
-    where: { item_id: itemId },
+    where: { item_id: itemId, warehouse_id: String(warehouseId) },
   });
 
-  if (!row) throw new Error(`Container stock not found for ${itemId}`);
+  if (!row)
+    throw new Error(
+      `Container stock not found for ${itemId} in this warehouse`,
+    );
 
   const stock = { ...(row.stock_with_container || {}) };
 
@@ -4160,6 +4173,7 @@ const newDirectItemIssue = async (req, res) => {
           // container-wise deduction
           await deductContainerStock(
             tx,
+            userWarehouseId,
             rawMaterialId,
             containerMap.get(rawMaterialId),
           );
@@ -4204,6 +4218,7 @@ const newDirectItemIssue = async (req, res) => {
           // container-wise deduction
           await deductContainerStock(
             tx,
+            userWarehouseId,
             rawMaterialId,
             containerMap.get(rawMaterialId),
           );
@@ -6677,8 +6692,12 @@ const addItemContainerStock = async (req, res) => {
     /* ---------------- 3. CHECK CONTAINERS EXIST ---------------- */
     const containerIds = [...incomingMap.keys()];
 
+    // only containers that belong to this storekeeper's warehouse
     const containerRows = await prisma.container_list.findMany({
-      where: { id: { in: containerIds } },
+      where: {
+        id: { in: containerIds },
+        warehouse_id: String(userWarehouseId),
+      },
       select: { id: true, name: true },
     });
 
@@ -6688,7 +6707,7 @@ const addItemContainerStock = async (req, res) => {
     if (missing.length > 0) {
       return res.status(404).json({
         success: false,
-        message: `Container not found: ${missing.join(", ")}`,
+        message: `Container not found in this warehouse: ${missing.join(", ")}`,
       });
     }
 
@@ -6748,7 +6767,7 @@ const addItemContainerStock = async (req, res) => {
     /* ---------------- SAVE ---------------- */
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.item_container_wise_history.findFirst({
-        where: { item_id: itemId },
+        where: { item_id: itemId, warehouse_id: String(userWarehouseId) },
       });
 
       // existing containers kept, incoming containers set to the sent quantity
@@ -6777,7 +6796,11 @@ const addItemContainerStock = async (req, res) => {
       }
 
       return await tx.item_container_wise_history.create({
-        data: { item_id: itemId, stock_with_container: stock },
+        data: {
+          item_id: itemId,
+          warehouse_id: String(userWarehouseId),
+          stock_with_container: stock,
+        },
       });
     });
 

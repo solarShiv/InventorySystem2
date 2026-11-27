@@ -354,6 +354,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
         const existing = await tx.item_container_wise_history.findMany({
           where: {
             item_id: { in: [...new Set(stockLines.map((l) => l.itemId))] },
+            warehouse_id: warehouseId,
           },
         });
         const historyByItem = new Map();
@@ -381,6 +382,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
             const created = await tx.item_container_wise_history.create({
               data: {
                 item_id: l.itemId,
+                warehouse_id: warehouseId,
                 stock_with_container: mergeContainerStock({}, l.stock),
               },
             });

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const SystemOrder = require("../../models/systemInventoryModels/systemOrderSchema");
 const AppVersion = require("../../models/commonModels/appVersionSchema");
 const InstallationInventory = require("../../models/systemInventoryModels/installationInventorySchema");
+const Warehouse = require("../../models/serviceInventoryModels/warehouseSchema");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
@@ -148,9 +149,24 @@ const importSystemOrdersFromExcel = async (req, res) => {
 
 
 
+// Resolve + validate the warehouse a container request is for.
+// Logged-in user's warehouse wins; otherwise `warehouseId` from body/query.
+const resolveContainerWarehouse = async (req) => {
+  const warehouseId =
+    req.user?.warehouseId || req.body?.warehouseId || req.query?.warehouseId;
+
+  if (!warehouseId) return { error: "warehouseId is required" };
+  if (!mongoose.Types.ObjectId.isValid(warehouseId)) {
+    return { error: "Invalid warehouseId" };
+  }
+
+  const warehouse = await Warehouse.findById(warehouseId).lean();
+  if (!warehouse) return { error: "Warehouse not found", status: 404 };
+
+  return { warehouseId: String(warehouseId) };
+};
+
 // CREATE container
-
-
 const createContainer = async (req, res) => {
   try {
     const { name } = req.body;
@@ -163,19 +179,25 @@ const createContainer = async (req, res) => {
       });
     }
 
+    const { warehouseId, error, status } = await resolveContainerWarehouse(req);
+    if (error) {
+      return res.status(status || 400).json({ success: false, message: error });
+    }
+
     const containerName = name.trim();
 
-    // Check for an existing container with the same name
+    // Container names are unique per warehouse
     const existingContainer = await prisma.container_list.findFirst({
       where: {
         name: containerName,
+        warehouse_id: warehouseId,
       },
     });
 
     if (existingContainer) {
       return res.status(409).json({
         success: false,
-        message: "Container name already exists",
+        message: "Container name already exists in this warehouse",
       });
     }
 
@@ -183,6 +205,7 @@ const createContainer = async (req, res) => {
     const container = await prisma.container_list.create({
       data: {
         name: containerName,
+        warehouse_id: warehouseId,
       },
     });
 
@@ -203,10 +226,16 @@ const createContainer = async (req, res) => {
 
 
 
-// GET all containers
+// GET all containers of a warehouse
 const getAllContainers = async (req, res) => {
   try {
+    const { warehouseId, error, status } = await resolveContainerWarehouse(req);
+    if (error) {
+      return res.status(status || 400).json({ success: false, message: error });
+    }
+
     const containers = await prisma.container_list.findMany({
+      where: { warehouse_id: warehouseId },
       orderBy: {
         name: "asc",
       },
@@ -248,6 +277,22 @@ const updateContainer = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Container not found",
+      });
+    }
+
+    // Keep names unique within the container's warehouse
+    const duplicate = await prisma.container_list.findFirst({
+      where: {
+        name: name.trim(),
+        warehouse_id: existingContainer.warehouse_id,
+        NOT: { id },
+      },
+    });
+
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "Container name already exists in this warehouse",
       });
     }
 
