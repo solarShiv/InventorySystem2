@@ -1646,7 +1646,7 @@ const createPurchaseOrder = async (req, res) => {
       //     message: "Expected Delivery Date cannot be same as PO Date",
       //   });
       // }
-
+      console.log("source_po_id :-", source_po_id, "expectedDateOnly :-", expectedDateOnly, "poDateOnly:", poDateOnly);
       if (source_po_id !== null && expectedDateOnly < poDateOnly) {
         return res.status(400).json({
           success: false,
