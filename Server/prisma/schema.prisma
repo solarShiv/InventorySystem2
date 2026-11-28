@@ -879,6 +879,7 @@ model PurchaseOrder {
   @@index([createdBy], map: "PurchaseOrder_createdBy_fkey")
   @@index([termsConditionsId], map: "PurchaseOrder_termsConditionsId_fkey")
   @@index([vendorId], map: "PurchaseOrder_vendorId_fkey")
+  @@index([createdAt])
 }
 
 model PurchaseOrderItem {
