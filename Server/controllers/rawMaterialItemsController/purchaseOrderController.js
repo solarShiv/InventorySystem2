@@ -1647,7 +1647,7 @@ const createPurchaseOrder = async (req, res) => {
       //   });
       // }
       console.log("source_po_id :-", source_po_id, "expectedDateOnly :-", expectedDateOnly, "poDateOnly:", poDateOnly);
-      if (source_po_id !== null && expectedDateOnly < poDateOnly) {
+      if ((source_po_id === null || source_po_id?.toString()?.length < 1) && expectedDateOnly < poDateOnly) {
         return res.status(400).json({
           success: false,
           message: "Expected Delivery Date cannot be before PO Date",
