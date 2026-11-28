@@ -1,12 +1,12 @@
 const prisma = require("../../../config/prismaClient");
 const fs = require("fs/promises");
 const path = require("path");
-const InstallationInventory = require("../../../models/systemInventoryModels/installationInventorySchema");
 const {
   AppError,
   prepareItems,
   mergeContainerStock,
-  rollbackMongo,
+  applyMongoStock,
+  receiptResponse,
 } = require("../../rawMaterialItemsController/storekeeperController");
 const { getItemDescriptionMap, keyOf } = require("../../../util/itemDescription");
 
@@ -151,7 +151,6 @@ const planSourceReceive = (lines, sourcePo) => {
 const purchaseOrderReceivingBill = async (req, res) => {
   const userId = req.user?.id;
   const warehouseId = String(req.user?.warehouseId);
-  const mongoRollbackStack = [];
   let uploadedFilePath = null;
 
   const deleteUploadedFile = async () => {
@@ -435,27 +434,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
       // 7. PO status
       await syncPoStatus(tx, purchaseOrderId, fresh.status);
 
-      // 8. Mongo stock LAST: atomic $inc. If anything below this (or the commit)
-      //    fails, the catch block compensates using mongoRollbackStack.
-      for (const l of lines) {
-        if (l.itemSource !== "mongo" || !addsStock(l)) continue;
-
-        const before = await InstallationInventory.findOneAndUpdate(
-          { warehouseId, systemItemId: l.itemId },
-          {
-            $inc: { quantity: l.baseQty },
-            $set: { updatedAt: new Date(), updatedByEmpId: userId },
-          },
-          { upsert: true, new: false },
-        );
-
-        mongoRollbackStack.push({
-          warehouseId,
-          systemItemId: l.itemId,
-          qty: l.baseQty,
-          created: !before,
-        });
-      }
+      // 8. Mongo stock is NOT written here — see applyMongoStock (runs after commit).
 
       // 9. Audit log
       const results = lines.map((l) => ({
@@ -491,16 +470,18 @@ const purchaseOrderReceivingBill = async (req, res) => {
       return { items: results, source: sourceInfo };
     }, TX_OPTIONS);
 
-    return res.status(200).json({
-      success: true,
-      message: "Purchase Order received successfully.",
-      data: receiptResults,
+    // MySQL committed — only now touch Mongo stock (never throws).
+    const stockFailed = await applyMongoStock({
+      warehouseId,
+      lines: lines.filter((l) => l.itemSource === "mongo" && addsStock(l)),
+      userId,
     });
+
+    return receiptResponse(res, receiptResults, stockFailed);
   } catch (err) {
     console.error("❌ PO Receiving Error:", err);
 
-    // MySQL is already rolled back by Prisma; undo any Mongo writes that happened.
-    if (mongoRollbackStack.length) await rollbackMongo(mongoRollbackStack);
+    // Mongo is only written after commit, so nothing to undo there.
     await deleteUploadedFile();
 
     let status = 500;

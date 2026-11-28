@@ -2779,28 +2779,59 @@ const prepareItems = async (rawItems, po) => {
 };
 
 /**
- * Compensating rollback for Mongo. Uses atomic $inc so it is safe even if
- * other writers touched the same document in the meantime.
+ * Adds received quantities to Mongo InstallationInventory.
+ *
+ * MUST be called only AFTER the MySQL transaction has committed. Prisma does not
+ * stop an interactive-transaction callback when it times out (P2028): the callback
+ * keeps running, so a Mongo write inside it can land after the catch block's
+ * rollback already ran — leaving stock in Mongo with no receipt in MySQL (and the
+ * user's retry adds it again). Writing after commit makes that impossible.
+ *
+ * Never throws. Returns the lines whose stock could not be written so the caller
+ * can report them; those need manual reconciliation (the receipt is committed).
  */
-const rollbackMongo = async (stack) => {
-  for (const r of [...stack].reverse()) {
+const applyMongoStock = async ({ warehouseId, lines, userId }) => {
+  const failed = [];
+  for (const l of lines) {
     try {
       await InstallationInventory.updateOne(
-        { warehouseId: r.warehouseId, systemItemId: r.systemItemId },
-        { $inc: { quantity: -r.qty } },
+        { warehouseId, systemItemId: l.itemId },
+        {
+          $inc: { quantity: l.baseQty },
+          $set: { updatedAt: new Date(), updatedByEmpId: userId },
+        },
+        { upsert: true },
       );
-      if (r.created) {
-        await InstallationInventory.deleteOne({
-          warehouseId: r.warehouseId,
-          systemItemId: r.systemItemId,
-          quantity: { $lte: QTY_EPSILON },
-        });
-      }
-    } catch (rbErr) {
-      // Needs manual reconciliation.
-      console.error("🚨 CRITICAL: Mongo rollback failed", r, rbErr);
+    } catch (err) {
+      console.error(
+        "🚨 CRITICAL: PO receipt committed but Mongo stock NOT updated — reconcile manually",
+        { warehouseId, itemId: String(l.itemId), qty: l.baseQty },
+        err,
+      );
+      failed.push({ itemId: l.itemId, itemName: l.itemName, qty: l.baseQty });
     }
   }
+  return failed;
+};
+
+/** Response for a committed receipt, flagging any stock that failed to post. */
+const receiptResponse = (res, data, stockFailed) => {
+  if (!stockFailed.length) {
+    return res.status(200).json({
+      success: true,
+      message: "Purchase Order received successfully.",
+      data,
+    });
+  }
+  // Receipt IS saved: do not tell the user to retry (that would double receive).
+  return res.status(200).json({
+    success: true,
+    message: `Purchase Order received, but stock could not be updated for: ${stockFailed
+      .map((f) => f.itemName)
+      .join(", ")}. Do NOT receive again — contact admin to correct the stock.`,
+    data,
+    stockUpdateFailed: stockFailed,
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -2809,7 +2840,6 @@ const rollbackMongo = async (stack) => {
 const purchaseOrderReceivingBill = async (req, res) => {
   const userId = req.user?.id;
   const warehouseId = String(req.user?.warehouseId);
-  const mongoRollbackStack = [];
   let uploadedFilePath = null;
 
   const deleteUploadedFile = async () => {
@@ -3056,27 +3086,7 @@ const purchaseOrderReceivingBill = async (req, res) => {
         });
       }
 
-      // 8. Mongo stock LAST: atomic $inc, no read-modify-write, no lookups.
-      //    If anything below this (or the commit) fails, the catch block compensates.
-      for (const l of lines) {
-        if (l.itemSource !== "mongo" || l.goodQty <= 0) continue;
-
-        const before = await InstallationInventory.findOneAndUpdate(
-          { warehouseId, systemItemId: l.itemId },
-          {
-            $inc: { quantity: l.baseQty },
-            $set: { updatedAt: new Date(), updatedByEmpId: userId },
-          },
-          { upsert: true, new: false },
-        );
-
-        mongoRollbackStack.push({
-          warehouseId,
-          systemItemId: l.itemId,
-          qty: l.baseQty,
-          created: !before,
-        });
-      }
+      // 8. Mongo stock is NOT written here — see applyMongoStock (runs after commit).
 
       // 9. Audit log
       const results = lines.map((l) => ({
@@ -3101,16 +3111,18 @@ const purchaseOrderReceivingBill = async (req, res) => {
       return results;
     }, TX_OPTIONS);
 
-    return res.status(200).json({
-      success: true,
-      message: "Purchase Order received successfully.",
-      data: receiptResults,
+    // MySQL committed — only now touch Mongo stock (never throws).
+    const stockFailed = await applyMongoStock({
+      warehouseId,
+      lines: lines.filter((l) => l.itemSource === "mongo" && l.goodQty > 0),
+      userId,
     });
+
+    return receiptResponse(res, receiptResults, stockFailed);
   } catch (err) {
     console.error("❌ PO Receiving Error:", err);
 
-    // MySQL is already rolled back by Prisma; undo any Mongo writes that happened.
-    if (mongoRollbackStack.length) await rollbackMongo(mongoRollbackStack);
+    // Mongo is only written after commit, so nothing to undo there.
     await deleteUploadedFile();
 
     let status = 500;
@@ -6855,6 +6867,7 @@ module.exports = {
   AppError,
   prepareItems,
   mergeContainerStock,
-  rollbackMongo,
+  applyMongoStock,
+  receiptResponse,
 };
 
